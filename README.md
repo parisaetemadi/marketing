@@ -206,6 +206,14 @@ What it catches on every PR, before merge:
 - a new page missing from `sitemap.xml`, or a sitemap entry pointing at nothing
 - an `og:image` that no social platform will render
 - internal links that resolve to nothing
+- working notes, tests or Worker source being publishable at the live domain
+
+That last one is worth spelling out. **Cloudflare Pages publishes the whole
+directory.** `README.md`, `CLAUDE.md`, `scripts/` and `worker/` are served at
+the live domain unless `.assetsignore` excludes them — a private repo does not
+make a public deploy private. The check verifies the file when auditing a
+checkout, and fetches the URLs when auditing production, because the two
+disagree until the next deploy.
 
 ---
 

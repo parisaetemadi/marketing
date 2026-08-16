@@ -48,6 +48,12 @@ module.exports = {
       forbiddenOn: ["/app"],
     },
 
+    /* Cloudflare Pages publishes the whole directory, so these are served at
+       the live domain unless .assetsignore excludes them. A private repo does
+       not make a public deploy private. */
+    neverPublish: ["README.md", "CLAUDE.md", "scripts/", "worker/", ".github/"],
+
+
     segments: [
       {
         id: "freelancers",
@@ -149,6 +155,10 @@ module.exports = {
       ],
       forbiddenOn: ["/app.html"],
     },
+
+    /* Already excluded via .assetsignore — the check keeps it that way. */
+    neverPublish: ["README.md", "CLAUDE.md", "scripts/", "worker/", ".github/"],
+
 
     sitemapRules: [
       { match: /^\/$/, priority: "1.0", changefreq: "weekly" },

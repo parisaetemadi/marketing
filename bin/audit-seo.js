@@ -18,6 +18,7 @@
 const fs = require("fs");
 const path = require("path");
 const site = require("../lib/site");
+const { get } = require("../lib/fetch");
 const SITES = require("../sites");
 
 /* Google truncates around 60 characters of title and about 160 of
@@ -248,6 +249,50 @@ function checkAnalytics(pages, config, report) {
   }
 }
 
+/* The repo is not the website. Cloudflare Pages publishes the whole directory,
+   so working notes, tests and Worker source are served at the live domain
+   unless `.assetsignore` says otherwise — "it is only in git" is not true
+   here, and a private repo does not make a public deploy private.
+
+   Checked against the file when auditing a checkout, and against the live
+   site when auditing production, because the two can disagree: the file only
+   takes effect on the next deploy. */
+function checkNeverPublished(source, config, report) {
+  const paths = config.neverPublish || [];
+  if (!paths.length || source.mode !== "dir") return;
+
+  const covered = (p) => (source.assetsIgnore || []).some((entry) =>
+    entry === p || (entry.endsWith("/") && p.startsWith(entry)));
+
+  if (!source.assetsIgnore.length) {
+    report.fail("(site)", "never-publish",
+      "no .assetsignore — Cloudflare Pages will serve every file in the repo, " +
+      "including " + paths.join(", "));
+    return;
+  }
+  for (const p of paths) {
+    if (!fs.existsSync(path.join(source.root, p))) continue;
+    if (!covered(p)) {
+      report.fail(p, "never-publish", "exists in the repo and .assetsignore does not exclude it");
+    }
+  }
+}
+
+async function checkNeverPublishedLive(config, report) {
+  for (const p of config.neverPublish || []) {
+    if (p.endsWith("/")) continue; /* probe files, not directories */
+    const url = config.origin.replace(/\/$/, "") + "/" + p.replace(/^\//, "");
+    try {
+      const res = await get(url, { attempts: 1 });
+      if (res.status === 200) {
+        report.fail(p, "never-publish", `is being served at ${url}`);
+      }
+    } catch (err) {
+      /* Anything that is not a 200 is the outcome we want. */
+    }
+  }
+}
+
 /* --- output ------------------------------------------------------------- */
 
 function printReport(report) {
@@ -318,6 +363,8 @@ function toMarkdown(reports) {
     checkDuplicates(source.pages, report);
     checkPurity(source.pages, config, source.root, report);
     checkAnalytics(source.pages, config, report);
+    checkNeverPublished(source, config, report);
+    if (source.mode === "origin") await checkNeverPublishedLive(config, report);
     if (source.mode === "dir") checkInternalLinks(source.pages, source.root, report);
 
     console.log(`${config.name}: checked ${source.pages.length} page(s) via ${source.mode}`);
