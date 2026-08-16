@@ -72,6 +72,12 @@ function truncate(s, n) {
    recent and loosely matches any term, which is how a first run surfaced
    "Why Windows Is Losing Gamers" as a lead for invoicing software. Relevance
    ordering plus the topic filter below is what makes this list worth opening. */
+/* HN's recurring omnibus threads collect thousands of unrelated comments, so
+   given enough of them every topic word appears somewhere. A comment
+   mentioning invoicing inside "Who is hiring?" is not someone shopping for an
+   invoicing tool, and these threads outrank real ones on sheer volume. */
+const HN_OMNIBUS = /(who is hiring|who wants to be hired|freelancer\?|seeking freelancer|what are you working on|who is looking for work|ask hn: who)/i;
+
 async function searchHn(query, sinceTs) {
   const url = "https://hn.algolia.com/api/v1/search" +
     `?query=${encodeURIComponent(query)}` +
@@ -79,15 +85,20 @@ async function searchHn(query, sinceTs) {
     `&numericFilters=created_at_i>${sinceTs}` +
     "&hitsPerPage=30";
   const data = await getJson(url);
-  return (data.hits || []).map((hit) => ({
-    source: "HN",
-    title: hit.title || hit.story_title || "(comment)",
-    text: [hit.title, hit.story_title, hit.comment_text, hit.story_text].filter(Boolean).join(" "),
-    url: `https://news.ycombinator.com/item?id=${hit.objectID}`,
-    author: hit.author,
-    created: hit.created_at,
-    engagement: hit.points || hit.num_comments || 0,
-  }));
+  return (data.hits || [])
+    .map((hit) => ({
+      source: "HN",
+      title: hit.title || hit.story_title || "(comment)",
+      thread: [hit.title, hit.story_title].filter(Boolean).join(" "),
+      text: [hit.title, hit.story_title, hit.comment_text, hit.story_text].filter(Boolean).join(" "),
+      url: `https://news.ycombinator.com/item?id=${hit.objectID}`,
+      author: hit.author,
+      created: hit.created_at,
+      engagement: hit.points || hit.num_comments || 0,
+    }))
+    /* Dead and flagged posts are not reachable and not worth a reply. */
+    .filter((hit) => !/^\[(dead|flagged)\]/i.test(hit.title.trim()))
+    .filter((hit) => !HN_OMNIBUS.test(hit.thread));
 }
 
 /* Reddit refuses unauthenticated search from datacenter IPs — every query from
