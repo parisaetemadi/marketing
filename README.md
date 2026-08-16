@@ -165,9 +165,47 @@ failed source degrades to a note in the digest rather than killing the run.
 | --- | --- | --- |
 | `outreach-digest.yml` | Mondays 08:00 UTC | Files the week's shortlist as an issue |
 | `site-audit.yml` | Mondays 07:00 UTC | Audits both live sites, opens an issue only on failures |
+| `audit-site.yml` | Called by a product repo | Gates that repo's PRs on the audit |
 
-Both use `gh` and `GITHUB_TOKEN`, already present on the runner. No secrets, no
-third-party actions, no spend.
+All three use `gh` and `GITHUB_TOKEN`, already present on the runner. No
+secrets, no third-party actions, no spend.
+
+---
+
+## Wiring it into a product repo
+
+A weekly audit of production tells you what already shipped. To stop it
+shipping, the audit has to run on the pull request — which is the gap that let
+a placeholder analytics token reach production and a red test suite sit unnoticed
+for a day.
+
+`audit-site.yml` is a reusable workflow. In the product repo, add
+`.github/workflows/checks.yml`:
+
+```yaml
+name: Checks
+on: [push, pull_request]
+
+jobs:
+  audit:
+    uses: parisaetemadi/marketing/.github/workflows/audit-site.yml@main
+    with:
+      site: quillbill        # or: orderofservicemaker
+```
+
+That is the whole integration. **This repo is public and the product repos are
+private, which is the useful direction** — a private repo can check this one out
+with the token it already has, so no PAT and no secrets are involved.
+
+What it catches on every PR, before merge:
+
+- an analytics token that isn't 32 hex characters (placeholders, typos, half a paste)
+- the beacon appearing on a page that must stay beacon-free
+- a third-party subresource creeping into a page that promises none
+- a canonical that doesn't match how Cloudflare Pages serves the file
+- a new page missing from `sitemap.xml`, or a sitemap entry pointing at nothing
+- an `og:image` that no social platform will render
+- internal links that resolve to nothing
 
 ---
 

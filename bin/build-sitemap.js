@@ -92,10 +92,14 @@ function build(config, dir) {
   const config = SITES[key];
   if (!config) { console.error(`unknown site: ${key}`); process.exit(2); }
 
-  const dir = dirFlag !== -1 ? argv[dirFlag + 1] : config.localPath;
+  /* --dir resolves from the working directory like any other CLI path;
+     localPath is a fact about this repo's layout, so it resolves from here. */
+  const dir = dirFlag !== -1
+    ? path.resolve(process.cwd(), argv[dirFlag + 1])
+    : (config.localPath && path.resolve(__dirname, "..", config.localPath));
   if (!dir) { console.error(`${config.name}: no --dir and no localPath in sites.js`); process.exit(2); }
 
-  const { xml, entries, root } = build(config, path.resolve(__dirname, "..", dir));
+  const { xml, entries, root } = build(config, dir);
   const target = path.join(root, "sitemap.xml");
   const current = fs.existsSync(target) ? fs.readFileSync(target, "utf8") : null;
 

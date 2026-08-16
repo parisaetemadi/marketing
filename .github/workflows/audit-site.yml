@@ -1,0 +1,56 @@
+name: Audit a site
+
+# Reusable: a product repo calls this from its own workflow and gets the audit
+# run against the checkout being proposed, before it can merge.
+#
+#   jobs:
+#     audit:
+#       uses: parisaetemadi/marketing/.github/workflows/audit-site.yml@main
+#       with:
+#         site: quillbill
+#
+# This repo is public and the product repos are private, which is the useful
+# direction: a private repo can check this one out with the token it already
+# has, so wiring it up needs no PAT and no secrets.
+
+on:
+  workflow_call:
+    inputs:
+      site:
+        description: "Key in sites.js — quillbill or orderofservicemaker"
+        required: true
+        type: string
+      check-sitemap:
+        description: "Also fail if sitemap.xml has drifted from the pages that exist"
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the site
+        uses: actions/checkout@v4
+        with:
+          path: site
+
+      - name: Check out the marketing tools
+        uses: actions/checkout@v4
+        with:
+          repository: parisaetemadi/marketing
+          ref: main
+          path: tools
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Audit
+        working-directory: tools
+        run: node bin/audit-seo.js "${{ inputs.site }}" --dir "$GITHUB_WORKSPACE/site"
+
+      - name: Sitemap
+        if: inputs.check-sitemap
+        working-directory: tools
+        run: node bin/build-sitemap.js "${{ inputs.site }}" --dir "$GITHUB_WORKSPACE/site" --check

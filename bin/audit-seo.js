@@ -292,12 +292,19 @@ function toMarkdown(reports) {
       if (args.mode === "live") {
         source = await site.fromOrigin(config.origin);
       } else {
-        const dir = args.dir || config.localPath;
+        /* An explicit --dir is resolved from the working directory, the way
+           any other command-line path would be; `localPath` is a property of
+           this repo's layout, so it resolves from this repo's root. Resolving
+           --dir against the script's location instead makes the tool
+           unusable from anywhere but a sibling checkout — CI included. */
+        const dir = args.dir
+          ? path.resolve(process.cwd(), args.dir)
+          : (config.localPath && path.resolve(__dirname, "..", config.localPath));
         if (!dir) {
           console.error(`${config.name}: no --dir given and no localPath in sites.js — skipping`);
           continue;
         }
-        source = site.fromDir(path.resolve(__dirname, "..", dir), config.origin, config.urlStyle);
+        source = site.fromDir(dir, config.origin, config.urlStyle);
       }
     } catch (err) {
       report.fail("(site)", "load", err.message);
