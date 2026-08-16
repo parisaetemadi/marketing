@@ -156,8 +156,16 @@ node bin/find-mentions.js --days 7
 node bin/find-mentions.js quillbill --days 14 --out digest.md
 ```
 
-Reddit rate-limits unauthenticated search and often refuses datacenter IPs; a
-failed source degrades to a note in the digest rather than killing the run.
+**Reddit currently returns nothing.** `search.json` is no longer served to
+unauthenticated clients — verified from both a GitHub runner and a laptop on a
+home connection, so it is not an IP-reputation problem. Reading it needs an app
+token, and creating an app is gated behind Reddit's own API registration. The
+client-credentials path is implemented and waiting on `REDDIT_CLIENT_ID` /
+`REDDIT_CLIENT_SECRET`; without them the source degrades to one line in the
+digest rather than killing the run.
+
+In practice this makes the digest HN-only, which covers the local-first segment
+well and the freelancer segment thinly.
 
 ### Workflows
 

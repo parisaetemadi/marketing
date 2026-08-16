@@ -101,9 +101,15 @@ async function searchHn(query, sinceTs) {
     .filter((hit) => !HN_OMNIBUS.test(hit.thread));
 }
 
-/* Reddit refuses unauthenticated search from datacenter IPs — every query from
-   a GitHub runner comes back 403, however polite the User-Agent. The only way
-   to read it from CI is an app token.
+/* Reddit refuses unauthenticated search outright — 403, however polite the
+   User-Agent. This was first assumed to be a datacenter-IP block, because it
+   showed up on a GitHub runner; the same query from a laptop on a home
+   connection returns 403 too, so it is not about where the request comes from.
+   search.json is simply not served to anonymous clients any more.
+
+   Reading it at all needs an app token, and creating an app is gated behind
+   Reddit's own API registration. Until that exists the Reddit half stays dark,
+   which is a deliberate degradation rather than a bug.
 
    One request per query term either way, with the subreddits folded in via
    Reddit's own `subreddit:` operator rather than one request per
@@ -201,9 +207,11 @@ async function gatherSegment(config, segment, args, notes) {
         if (/HTTP 40[13]/.test(err.message)) {
           notes.push(process.env.REDDIT_CLIENT_ID
             ? `Reddit refused the request (${err.message}) — check the app credentials.`
-            : "Reddit skipped: unauthenticated search is refused from datacenter IPs. " +
-              "Register a free script app at reddit.com/prefs/apps and set the " +
-              "REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET repo secrets to enable it.");
+            : "Reddit skipped: search.json is no longer served to unauthenticated " +
+              "clients, from a laptop or from CI alike. Enabling it needs an app " +
+              "token, and app creation is gated behind Reddit's API registration " +
+              "(reddit.com/prefs/apps → 'register to use the API'). Set " +
+              "REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET once you have one.");
           break;
         }
         notes.push(`Reddit search for ${JSON.stringify(query)} failed: ${err.message}`);
