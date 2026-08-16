@@ -1,0 +1,41 @@
+name: Site audit
+
+# Audits the deployed sites, not a checkout, so it catches things a local run
+# cannot: a deploy that silently dropped a page, a sitemap that stopped
+# matching reality, an analytics beacon that reappeared on /app because
+# Cloudflare's automatic setup got switched on in the dashboard.
+#
+# Runs weekly. Opens an issue only when something is actually wrong.
+
+on:
+  schedule:
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Audit live sites
+        id: audit
+        continue-on-error: true
+        run: node bin/audit-seo.js --all --live --markdown audit.md
+
+      - name: File findings
+        if: steps.audit.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Site audit findings — $(date -u +%Y-%m-%d)"
+          gh issue create --title "$title" --body-file audit.md --label seo \
+            || gh issue create --title "$title" --body-file audit.md

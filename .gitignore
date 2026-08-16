@@ -1,0 +1,7 @@
+node_modules/
+.DS_Store
+
+# Reports the tools write locally
+digest.md
+audit.md
+*.local.md

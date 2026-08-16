@@ -1,0 +1,45 @@
+name: Outreach digest
+
+# Every Monday morning, collect the week's threads worth answering and file
+# them as an issue. The issue is the inbox: you read it, you reply by hand in
+# the threads that deserve a reply, you close it.
+#
+# Nothing here posts to Reddit or HN. See bin/find-mentions.js for why.
+
+on:
+  schedule:
+    - cron: "0 8 * * 1"
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "How many days back to look"
+        required: false
+        default: "7"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Collect mentions
+        run: node bin/find-mentions.js --days "${{ github.event.inputs.days || 7 }}" --out digest.md
+
+      - name: File the digest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Outreach shortlist — week of $(date -u +%Y-%m-%d)"
+          gh issue create \
+            --title "$title" \
+            --body-file digest.md \
+            --label outreach \
+            || gh issue create --title "$title" --body-file digest.md

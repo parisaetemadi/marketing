@@ -1,0 +1,14 @@
+{
+  "name": "marketing",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Growth tooling for Quillbill and Order of Service Maker. No dependencies by design.",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "audit": "node bin/audit-seo.js quillbill --dir ../Quillbill",
+    "audit:live": "node bin/audit-seo.js --all --live",
+    "sitemap": "node bin/build-sitemap.js quillbill --dir ../Quillbill",
+    "sitemap:check": "node bin/build-sitemap.js quillbill --dir ../Quillbill --check",
+    "mentions": "node bin/find-mentions.js --days 7"
+  }
+}
