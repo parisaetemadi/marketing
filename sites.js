@@ -53,6 +53,31 @@ module.exports = {
        not make a public deploy private. */
     neverPublish: ["README.md", "CLAUDE.md", "scripts/", "worker/", ".github/"],
 
+    /* Every price the guides quote, and where it came from.
+       bin/check-prices.js reads this: the guides rank because they carry real
+       numbers, which means a number going stale quietly damages them. Update
+       `value` if it moved and set `verified` to today when you have looked. */
+    priceClaims: [
+      { label: "FreshBooks Lite", value: "$23", source: "https://www.freshbooks.com/pricing",
+        page: "/guides/invoice-software-pricing-comparison", verified: "2026-08-15" },
+      { label: "QuickBooks Simple Start", value: "$35", match: ["$35", "$38"],
+        source: "https://quickbooks.intuit.com/pricing/",
+        page: "/guides/invoice-software-pricing-comparison", verified: "2026-08-15" },
+      { label: "HoneyBook Starter", value: "$29", match: ["$29", "$36"],
+        source: "https://www.honeybook.com/pricing",
+        page: "/guides/invoice-software-pricing-comparison", verified: "2026-08-15" },
+      { label: "Bonsai Essentials", value: "$19", match: ["$19", "$25"],
+        source: "https://www.hellobonsai.com/pricing",
+        page: "/guides/invoice-software-pricing-comparison", verified: "2026-08-15" },
+      { label: "Wave Pro", value: "$19", source: "https://www.waveapps.com/pricing",
+        page: "/guides/invoice-software-pricing-comparison", verified: "2026-08-15" },
+      { label: "Stripe standard processing", value: "2.9%", match: ["2.9%"],
+        source: "https://stripe.com/pricing",
+        page: "/guides/stripe-invoicing-fees-explained", verified: "2026-08-15" },
+      { label: "Stripe Invoicing Plus", value: "0.5%", match: ["0.5%"],
+        source: "https://stripe.com/invoicing/pricing",
+        page: "/guides/stripe-invoicing-fees-explained", verified: "2026-08-15" },
+    ],
 
     segments: [
       {
@@ -166,6 +191,16 @@ module.exports = {
 
     /* Already excluded via .assetsignore — the check keeps it that way. */
     neverPublish: ["README.md", "CLAUDE.md", "scripts/", "worker/", ".github/"],
+
+    /* The two numbers the whole pitch turns on. If a printer's per-booklet rate
+       drifts, three guides and the homepage comparison go quietly wrong. */
+    priceClaims: [
+      { label: "Funeral printer, per booklet", value: "$4.90", source: null,
+        page: "/guides/funeral-order-of-service-cost.html", verified: "2026-08-15" },
+      { label: "Funeral printer, 50 booklets", value: "$245", source: null,
+        page: "/", verified: "2026-08-15" },
+    ],
+
 
 
     sitemapRules: [

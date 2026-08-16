@@ -1,0 +1,38 @@
+name: Price check
+
+# The guides rank because they quote real numbers. Those numbers age, and a
+# guide quoting last year's price is worse than no guide — being specific is
+# the reason anyone trusts it.
+#
+# Monthly, because vendors change plans a few times a year and a weekly nag
+# would just get ignored.
+
+on:
+  schedule:
+    - cron: "0 9 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  prices:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Check quoted prices
+        run: node bin/check-prices.js --out prices.md
+
+      - name: File the results
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Price check — $(date -u +%Y-%m)"
+          gh issue create --title "$title" --body-file prices.md --label prices \
+            || gh issue create --title "$title" --body-file prices.md
