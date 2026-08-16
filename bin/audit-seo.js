@@ -102,6 +102,14 @@ function checkPage(page, report, config) {
   }
   if (!page.twitterCard) report.warn(id, "twitter:card", "missing");
 
+  /* An SVG og:image is worse than none: the tag looks correct, previews
+     validate locally, and then Facebook, X, LinkedIn, WhatsApp and iMessage
+     all decline to render it and show a bare grey link instead. None of them
+     support SVG. */
+  if (page.og.image && /\.svgz?(?:[?#]|$)/i.test(page.og.image)) {
+    report.fail(id, "og:image", `is an SVG (${page.og.image}) — no social platform renders SVG previews; use PNG or JPG`);
+  }
+
   if (page.h1Count === 0) report.fail(id, "h1", "no <h1>");
   else if (page.h1Count > 1) report.warn(id, "h1", `${page.h1Count} <h1> elements, expected 1`);
 }
@@ -276,7 +284,7 @@ function toMarkdown(reports) {
           console.error(`${config.name}: no --dir given and no localPath in sites.js — skipping`);
           continue;
         }
-        source = site.fromDir(path.resolve(__dirname, "..", dir), config.origin);
+        source = site.fromDir(path.resolve(__dirname, "..", dir), config.origin, config.urlStyle);
       }
     } catch (err) {
       report.fail("(site)", "load", err.message);

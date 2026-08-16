@@ -175,30 +175,50 @@ third-party actions, no spend.
 
 Roughly in order of expected return:
 
-1. **Programmatic-but-real pages for Quillbill.** `/vs/freshbooks`,
-   `/vs/wave`, `/invoice-template/<trade>`, `/invoice/<country>` for VAT and
-   Rechnung formats. Comparison intent converts because the visitor has already
-   decided to switch. The existing guides prove the format works — each new one
-   should carry real numbers, not a template fill.
-2. **Ten partnership conversations for the funeral segment.** Independent
+1. **Replace Quire's `og-cover.svg` with a PNG.** No social platform renders
+   SVG previews — not Facebook, X, LinkedIn, WhatsApp or iMessage. The tag
+   validates, the file exists, and every shared link still shows as a bare grey
+   box. For a product whose links get sent between family members and between
+   engaged couples, this is the cheapest fix on the list. Quillbill already
+   ships a PNG; copy that setup. Then add `og:image` and `twitter:card` to the
+   five guides, which currently have neither.
+2. **Rebalance Quire's guides away from cost.** Three of the five are about
+   price. That is Quillbill's playbook, and it works there because freelancers
+   genuinely shop on price. A family arranging a funeral next Tuesday is not
+   comparison shopping — they are searching *"what do you put in an order of
+   service"*, *"how many should I print"*, *"readings for a funeral"*. There is
+   one wording guide against three cost guides; the ratio should be the other
+   way around. Practical guides are also the ones a funeral director will link
+   to, which is the partnership channel's way in.
+3. **Ten partnership conversations for the funeral segment.** Independent
    funeral directors, humanist celebrants, hospice bereavement coordinators.
-   Offer something worth having — a co-branded template, a printing guide — not
+   Offer something worth having — a printing guide, a co-branded template — not
    an affiliate link.
-3. **Split the Order of Service entry paths.** Separate landing pages, separate
-   tone, separate search targeting for funeral and wedding. Currently these
-   almost certainly compete with each other for the same page.
-4. **Wording and hymn guides.** "What to include in an order of service",
-   "funeral hymns list", "how many to print". High-intent, low-competition, and
-   genuinely useful to someone having a bad week.
-5. **Cross-link the two products' footers.** Free, permanent, and the audiences
+4. **Split Quire's entry paths by ceremony.** Funeral and wedding currently
+   share one landing page and one voice. They need separate pages, separate
+   tone, and separate search targeting; right now they compete with each other
+   for every query.
+5. **Programmatic-but-real pages for Quillbill.** `/vs/freshbooks`, `/vs/wave`,
+   `/invoice-template/<trade>`, `/invoice/<country>` for VAT and Rechnung
+   formats. Comparison intent converts because the visitor has already decided
+   to switch. Each page needs real numbers, not a template fill.
+6. **Give Quire the analytics Quillbill has.** It currently has no beacon at
+   all, so there is no way to tell which guide earns the $30. Cloudflare Web
+   Analytics on the marketing pages only — never on `app.html` — is what
+   Quillbill does and stays consistent with the privacy pitch. Add
+   `analytics.requiredOn` / `forbiddenOn` to `sites.js` afterwards so the audit
+   holds the line.
+7. **Cross-link the two products' footers.** Free, permanent, and the audiences
    overlap more than you'd think — celebrants and stationers invoice too.
-6. **A launch pass on the directories.** AlternativeTo, SaaSHub, Show HN,
+8. **A launch pass on the directories.** AlternativeTo, SaaSHub, Show HN,
    Indie Hackers. Once each, written by hand, no bulk submission.
 
 ---
 
-## Adding the second site
+## A note on URL styles
 
-`sites.js` has `repo` and `localPath` set to `null` for Order of Service Maker.
-Fill those in and `--dir` mode and the live audit's per-product rules start
-working for it too. Its segments, tone and channels are already configured.
+The two sites canonicalise differently: Quillbill drops the `.html` extension,
+Quire keeps it. Cloudflare Pages serves both forms, so neither is wrong — but
+the tools have to be told which, via `urlStyle` in `sites.js`, or every page on
+one site reads as a canonical mismatch. If a third site shows up, set this
+first.

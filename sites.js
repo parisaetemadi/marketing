@@ -103,20 +103,48 @@ module.exports = {
   },
 
   orderofservicemaker: {
+    /* "Order of Service Maker" in public, "Quire" in the repo. */
     name: "Order of Service Maker",
     origin: "https://orderofservicemaker.help",
+    repo: "parisaetemadi/Booklet",
+    localPath: "../booklet",
 
-    /* TODO(parisa): fill these in — this repo was set up without access to
-       that project. repo/localPath are needed for --dir runs and for the
-       site audit; the rest only sharpens how the tools score things. */
-    repo: null,
-    localPath: null,
+    /* This site canonicalises WITH the .html extension, where Quillbill drops
+       it. Cloudflare Pages serves both forms, so neither is wrong — but the
+       tools have to be told which one each site chose, or every page on one of
+       them reads as a canonical mismatch. */
+    urlStyle: "explicit",
 
-    pitch: "Build a printable order of service for a funeral, memorial or wedding.",
-    price: null,
+    pitch: "A print-ready order of service booklet in about twenty minutes, " +
+      "made privately on your own computer.",
+    price: "$30 once",
+    /* The number the pitch turns on: a funeral printer is about $4.90 a booklet
+       at a minimum order of fifty, so roughly $245 for one funeral. */
+    competitorPrice: "~$245 per funeral from a printer",
 
-    purity: null,
+    purity: {
+      /* Same promise as Quillbill — "nothing leaves your computer" is in the
+         meta description, so it is a checked rule here too. */
+      pages: ["/app.html"],
+      allowedHosts: {
+        "oosm-licenses.quillbill.workers.dev": "license activation, fired by an explicit click",
+        "buy.stripe.com": "checkout, navigated to on click, never a subresource",
+        "www.w3.org": "SVG XML namespace, not a network request",
+        "schema.org": "JSON-LD vocabulary, not a network request",
+      },
+    },
+
+    /* This site currently carries no analytics at all, so there is nothing to
+       enforce. That also means there is no way to tell which guide earns the
+       sales — see the README for the one change worth making here. */
     analytics: null,
+
+    sitemapRules: [
+      { match: /^\/$/, priority: "1.0", changefreq: "weekly" },
+      { match: /^\/guides\/$/, priority: "0.7", changefreq: "monthly" },
+      { match: /^\/guides\//, priority: "0.7", changefreq: "monthly" },
+      { match: /.*/, priority: "0.5", changefreq: "monthly" },
+    ],
 
     segments: [
       {
@@ -150,11 +178,14 @@ module.exports = {
           "hospice and bereavement coordinators", "local print shops",
           "churches and parish administrators",
         ],
-        /* Search intent to earn with content, not to bid on. */
+        /* Search intent to earn with content, not to bid on. The site already
+           covers cost and wording; the gaps are the practical questions that
+           come up while actually making the thing. */
         searchIntent: [
           "funeral order of service template", "what to include in an order of service",
           "funeral hymns list", "memorial service programme", "order of service wording",
           "readings for a funeral", "how many orders of service to print",
+          "order of service page count", "how to print an order of service at home",
         ],
       },
       {

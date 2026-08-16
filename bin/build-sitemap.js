@@ -18,18 +18,20 @@ const site = require("../lib/site");
 const SITES = require("../sites");
 
 /* Priority and change frequency by served path. First match wins; the last
-   entry is the fallback. Tweak here rather than in the generated file — the
-   generated file gets overwritten. */
-const RULES = [
+   entry is the fallback. A site can override this with `sitemapRules` in
+   sites.js. Tweak it there rather than in the generated file — the generated
+   file gets overwritten. */
+const DEFAULT_RULES = [
   { match: /^\/$/,          priority: "1.0", changefreq: "weekly" },
-  { match: /^\/app$/,       priority: "0.8", changefreq: "monthly" },
+  { match: /^\/app(?:\.html)?$/, priority: "0.8", changefreq: "monthly" },
   { match: /^\/guides\/$/,  priority: "0.7", changefreq: "monthly" },
   { match: /^\/guides\//,   priority: "0.7", changefreq: "monthly" },
   { match: /.*/,            priority: "0.5", changefreq: "monthly" },
 ];
 
-function ruleFor(served) {
-  return RULES.find((r) => r.match.test(served));
+function ruleFor(served, rules) {
+  return (rules || DEFAULT_RULES).find((r) => r.match.test(served)) ||
+    { priority: "0.5", changefreq: "monthly" };
 }
 
 /* The date of the last commit that touched the file. Falls back to mtime for
@@ -48,13 +50,13 @@ function lastModified(root, file) {
 }
 
 function build(config, dir) {
-  const source = site.fromDir(dir, config.origin);
+  const source = site.fromDir(dir, config.origin, config.urlStyle);
   const origin = config.origin.replace(/\/$/, "");
 
   const entries = source.pages
     .filter((page) => page.indexable)
     .map((page) => {
-      const rule = ruleFor(page.served);
+      const rule = ruleFor(page.served, config.sitemapRules);
       return {
         loc: origin + page.served,
         lastmod: lastModified(source.root, page.file),
