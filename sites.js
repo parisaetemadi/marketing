@@ -62,6 +62,10 @@ module.exports = {
            software pricing in public. The pitch is arithmetic: $29 once
            against $23–43 every month. */
         state: "shopping — comparing tools, usually annoyed about a renewal",
+        /* The thread has to actually be about this before intent words mean
+           anything. Without it, "best" and "which" float general news to the
+           top of the list. */
+        mustMatch: /invoic|billing|freshbooks|quickbooks|freelance.{0,20}(admin|paperwork|account)|bookkeep|get paid/i,
         tone: "direct, numeric, faintly anti-subscription; peer to peer",
         solicit: true,
         channels: ["search", "community", "directories", "comparison-pages"],
@@ -88,6 +92,7 @@ module.exports = {
            about the actual architecture. This is the crowd that makes
            Show HN and r/selfhosted work. */
         state: "browsing — collects tools that do not phone home",
+        mustMatch: /local.?first|offline.?first|no telemetry|works offline|self.?host|privacy.?first|in the browser/i,
         tone: "technical, specific, no marketing adjectives; show the receipts",
         solicit: true,
         channels: ["community", "directories", "show-hn"],
@@ -218,6 +223,7 @@ module.exports = {
            stationery question in a planning community is ordinary
            helpfulness here, not intrusion. */
         state: "planning — months of lead time, researching, comparing, DIY-inclined",
+        mustMatch: /order of service|ceremony program|wedding program|ceremony booklet|order.?of.?service/i,
         tone: "warm and practical; templates, budgets and printing tips",
         solicit: true,
         channels: ["search", "community", "partnership", "directories"],

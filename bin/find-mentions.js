@@ -18,7 +18,7 @@
      node bin/find-mentions.js --out digest.md */
 
 const fs = require("fs");
-const { getJson, sleep } = require("../lib/fetch");
+const { getJson, sleep, UA } = require("../lib/fetch");
 const SITES = require("../sites");
 
 function parseArgs(argv) {
@@ -34,8 +34,20 @@ function parseArgs(argv) {
   return args;
 }
 
-/* How much a thread looks like a buying question rather than chatter. Kept
-   deliberately simple and legible — you are going to read every hit anyway,
+/* Is this thread about the thing we make at all?
+
+   This gate matters more than the score. Intent words like "best", "which" and
+   "vs" appear in almost any thread on any subject, so ranking by them alone
+   floats general-interest news to the top — the first live run put an article
+   about data centres and water use above every actual invoicing thread.
+   Nothing gets scored until it has cleared this. */
+function onTopic(text, mustMatch) {
+  if (!mustMatch) return true;
+  return mustMatch.test(String(text || ""));
+}
+
+/* How much an on-topic thread looks like a buying question rather than
+   chatter. Deliberately simple and legible — you will read every hit anyway,
    so the score only has to sort them, not judge them. */
 function score(text, intentWords) {
   const haystack = String(text || "").toLowerCase();
@@ -54,9 +66,14 @@ function truncate(s, n) {
 
 /* Hacker News via the Algolia API: free, no key, no rate limit worth worrying
    about. Comments matter as much as stories — "what do you use for invoicing"
-   usually shows up buried in an Ask HN thread. */
+   usually shows up buried in an Ask HN thread.
+
+   `search`, not `search_by_date`. The date-sorted endpoint returns whatever is
+   recent and loosely matches any term, which is how a first run surfaced
+   "Why Windows Is Losing Gamers" as a lead for invoicing software. Relevance
+   ordering plus the topic filter below is what makes this list worth opening. */
 async function searchHn(query, sinceTs) {
-  const url = "https://hn.algolia.com/api/v1/search_by_date" +
+  const url = "https://hn.algolia.com/api/v1/search" +
     `?query=${encodeURIComponent(query)}` +
     "&tags=(story,comment)" +
     `&numericFilters=created_at_i>${sinceTs}` +
@@ -73,22 +90,52 @@ async function searchHn(query, sinceTs) {
   }));
 }
 
-/* Reddit's public search JSON needs no key, but it rate-limits hard and often
-   refuses datacenter IPs outright. A failure here is expected rather than
-   exceptional, so it degrades to a note in the digest.
+/* Reddit refuses unauthenticated search from datacenter IPs — every query from
+   a GitHub runner comes back 403, however polite the User-Agent. The only way
+   to read it from CI is an app token.
 
-   One request per query term, with the subreddits folded into the query via
-   Reddit's own `subreddit:` operator, rather than one request per
-   subreddit-times-term. Eight subreddits and nine terms is 72 requests done
-   naively and 9 done this way — the difference between a run that gets
-   throttled halfway and one that finishes. */
+   One request per query term either way, with the subreddits folded in via
+   Reddit's own `subreddit:` operator rather than one request per
+   subreddit-times-term: eight subreddits and nine terms is 72 requests done
+   naively and 9 done this way.
+
+   Registering a script app at reddit.com/prefs/apps is free and takes a
+   minute; set REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET as repo secrets and
+   this starts working. Without them the Reddit half is skipped with one line
+   in the digest rather than a wall of identical 403s. */
+let redditToken;
+async function redditAuth() {
+  const id = process.env.REDDIT_CLIENT_ID;
+  const secret = process.env.REDDIT_CLIENT_SECRET;
+  if (!id || !secret) return null;
+  if (redditToken !== undefined) return redditToken;
+
+  const res = await fetch("https://www.reddit.com/api/v1/access_token", {
+    method: "POST",
+    headers: {
+      Authorization: "Basic " + Buffer.from(id + ":" + secret).toString("base64"),
+      "Content-Type": "application/x-www-form-urlencoded",
+      "User-Agent": UA,
+    },
+    body: "grant_type=client_credentials",
+  });
+  if (!res.ok) throw new Error(`Reddit auth failed with HTTP ${res.status}`);
+  redditToken = (await res.json()).access_token || null;
+  return redditToken;
+}
+
 async function searchReddit(subreddits, query, days) {
   const t = days <= 7 ? "week" : days <= 31 ? "month" : "year";
   const scope = subreddits.map((s) => `subreddit:${s}`).join(" OR ");
   const q = `${query} (${scope})`;
-  const url = "https://www.reddit.com/search.json" +
+  const token = await redditAuth();
+  const host = token ? "https://oauth.reddit.com" : "https://www.reddit.com";
+  const url = host + "/search.json" +
     `?q=${encodeURIComponent(q)}&sort=new&t=${t}&limit=50`;
-  const data = await getJson(url, { attempts: 2 });
+  const data = await getJson(url, {
+    attempts: 2,
+    headers: token ? { Authorization: "Bearer " + token } : {},
+  });
   return (data.data && data.data.children || []).map((child) => {
     const post = child.data;
     return {
@@ -137,6 +184,17 @@ async function gatherSegment(config, segment, args, notes) {
         const allowed = new Set(subreddits.map((s) => s.toLowerCase()));
         hits.push(...found.filter((h) => allowed.has(h.source.slice(2).toLowerCase())));
       } catch (err) {
+        /* A 403 is Reddit refusing us outright, not a bad query — every
+           remaining term would fail identically. Say it once and move on
+           rather than filling the digest with the same line ten times. */
+        if (/HTTP 40[13]/.test(err.message)) {
+          notes.push(process.env.REDDIT_CLIENT_ID
+            ? `Reddit refused the request (${err.message}) — check the app credentials.`
+            : "Reddit skipped: unauthenticated search is refused from datacenter IPs. " +
+              "Register a free script app at reddit.com/prefs/apps and set the " +
+              "REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET repo secrets to enable it.");
+          break;
+        }
         notes.push(`Reddit search for ${JSON.stringify(query)} failed: ${err.message}`);
       }
       await sleep(1200); /* Reddit is strict about unauthenticated bursts. */
@@ -144,8 +202,17 @@ async function gatherSegment(config, segment, args, notes) {
   }
 
   const seen = new Set();
-  return hits
-    .filter((hit) => { if (seen.has(hit.url)) return false; seen.add(hit.url); return true; })
+  const unique = hits.filter((hit) => {
+    if (seen.has(hit.url)) return false;
+    seen.add(hit.url);
+    return true;
+  });
+
+  const relevant = unique.filter((hit) => onTopic(hit.text, segment.mustMatch));
+  const dropped = unique.length - relevant.length;
+  if (dropped) notes.push(`${dropped} result(s) dropped as off-topic by this segment's mustMatch.`);
+
+  return relevant
     .map((hit) => Object.assign(hit, { score: score(hit.text, config.intentWords || []) }))
     .sort((a, b) => (b.score - a.score) || (b.engagement - a.engagement))
     .slice(0, args.limit);
