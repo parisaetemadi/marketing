@@ -233,6 +233,19 @@ function checkAnalytics(pages, config, report) {
       report.fail(served, "analytics", "beacon present on a page that must stay beacon-free");
     }
   }
+
+  /* A Cloudflare site token is 32 hex characters. Anything else is either a
+     placeholder waiting to be filled in or a typo — and both fail the same
+     silent way: the script loads, the request goes out, and no data is ever
+     recorded. Better to fail loudly now than to find out a month later. */
+  for (const page of pages) {
+    if (!page.beaconToken) continue;
+    if (!/^[0-9a-f]{32}$/i.test(page.beaconToken)) {
+      report.fail(page.served, "analytics",
+        `beacon token ${JSON.stringify(page.beaconToken)} is not a 32-character Cloudflare token — ` +
+        "fill it in from Cloudflare → Web Analytics before this ships");
+    }
+  }
 }
 
 /* --- output ------------------------------------------------------------- */

@@ -134,10 +134,21 @@ module.exports = {
       },
     },
 
-    /* This site currently carries no analytics at all, so there is nothing to
-       enforce. That also means there is no way to tell which guide earns the
-       sales — see the README for the one change worth making here. */
-    analytics: null,
+    analytics: {
+      /* Same arrangement as Quillbill: the beacon is on the marketing pages
+         and the post-purchase page, and never on the studio. Cloudflare's
+         "automatic setup" must stay OFF in the dashboard — it injects the
+         beacon into every proxied page, app.html included. */
+      requiredOn: [
+        "/", "/thanks.html", "/guides/",
+        "/guides/funeral-order-of-service-cost.html",
+        "/guides/wedding-order-of-service-cost.html",
+        "/guides/order-of-service-cost-comparison.html",
+        "/guides/order-of-service-wording-examples.html",
+        "/guides/order-of-service-privacy.html",
+      ],
+      forbiddenOn: ["/app.html"],
+    },
 
     sitemapRules: [
       { match: /^\/$/, priority: "1.0", changefreq: "weekly" },
