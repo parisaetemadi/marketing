@@ -223,8 +223,12 @@ async function gatherSegment(config, segment, args, notes) {
   const dropped = unique.length - relevant.length;
   if (dropped) notes.push(`${dropped} result(s) dropped as off-topic by this segment's mustMatch.`);
 
+  /* A hit that cleared the topic gate but shows no sign of anyone asking
+     anything is not a lead — it is a page that happened to contain the word.
+     Listing it costs more attention than it is worth. */
   return relevant
     .map((hit) => Object.assign(hit, { score: score(hit.text, config.intentWords || []) }))
+    .filter((hit) => hit.score > 0)
     .sort((a, b) => (b.score - a.score) || (b.engagement - a.engagement))
     .slice(0, args.limit);
 }
