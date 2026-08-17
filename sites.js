@@ -48,9 +48,12 @@ module.exports = {
       forbiddenOn: ["/app"],
     },
 
-    /* The Web Analytics site tag — the same token in the data-cf-beacon
-       attribute on the pages. bin/revenue-report.js queries traffic by it. */
-    analyticsSiteTag: "4d332798ff3e4668b369ee228a028824",
+    /* The Web Analytics site TOKEN — the value in the data-cf-beacon attribute
+       on the pages. Note this is not the site_tag the GraphQL API filters on;
+       revenue-report.js resolves one to the other, because assuming they were
+       the same silently returned zero traffic for a site doing hundreds of
+       views a month. */
+    analyticsSiteToken: "4d332798ff3e4668b369ee228a028824",
 
     /* Prices in cents, used to tell this product's Stripe charges from the
        other one's. Works only because the price points are distinct; if the
@@ -199,7 +202,7 @@ module.exports = {
       forbiddenOn: ["/app.html"],
     },
 
-    analyticsSiteTag: "de55ac01e2db4343b8476843469716ff",
+    analyticsSiteToken: "de55ac01e2db4343b8476843469716ff",
     stripeAmounts: [3000],
 
     /* Already excluded via .assetsignore — the check keeps it that way. */

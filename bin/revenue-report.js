@@ -56,8 +56,44 @@ function money(cents, currency) {
 
 /* --- Cloudflare ---------------------------------------------------------- */
 
-/* Web Analytics lives in the RUM dataset. siteTag is the same token that sits
-   in the data-cf-beacon attribute on the pages. */
+/* Web Analytics has TWO identifiers and they are not interchangeable:
+
+     site_token  the value in the data-cf-beacon attribute on the pages
+     site_tag    the value the GraphQL RUM dataset filters on
+
+   Assuming they were the same produced a query that authenticated correctly,
+   returned no error, and matched nothing — so the report said "no pageviews"
+   for sites doing hundreds a month. A filter that silently matches nothing is
+   the worst kind of wrong, because it looks like an answer.
+
+   This resolves one to the other via the RUM site list, keyed on the token,
+   which is the value the sites actually carry. Cached per run. */
+const siteTagCache = new Map();
+
+async function resolveSiteTag(siteToken) {
+  if (siteTagCache.has(siteToken)) return siteTagCache.get(siteToken);
+
+  const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT}/rum/site_info/list?per_page=100`;
+  const res = await fetch(url, { headers: { Authorization: "Bearer " + CF_TOKEN } });
+  if (!res.ok) throw new Error(`Cloudflare site list HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
+
+  const body = await res.json();
+  if (!body.success) {
+    throw new Error("Cloudflare site list: " + (body.errors || []).map((e) => e.message).join("; "));
+  }
+
+  for (const site of body.result || []) {
+    if (site.site_token) siteTagCache.set(site.site_token, site.site_tag);
+  }
+
+  const tag = siteTagCache.get(siteToken);
+  if (!tag) {
+    throw new Error(`no Web Analytics site matches the beacon token ${siteToken.slice(0, 8)}… — ` +
+      `the account has ${(body.result || []).length} site(s); check analyticsSiteTag in sites.js`);
+  }
+  return tag;
+}
+
 async function cloudflarePages(siteTag, sinceIso, untilIso) {
   const query = `
     query PageViews($account: String!, $siteTag: String!, $since: Time!, $until: Time!) {
@@ -238,12 +274,13 @@ function render(sections, args, notes) {
   for (const [key, config] of Object.entries(SITES)) {
     const section = { name: config.name, pages: [], totalViews: 0, sales: { count: 0, gross: 0 } };
 
-    const siteTag = config.analyticsSiteTag;
+    const siteTag = config.analyticsSiteToken || config.analyticsSiteTag;
     if (!CF_TOKEN) section.error = "no CF_API_TOKEN";
     else if (!siteTag) section.error = "no analyticsSiteTag in sites.js";
     else {
       try {
-        section.pages = await cloudflarePages(siteTag, sinceIso, untilIso);
+        const tag = await resolveSiteTag(siteTag);
+        section.pages = await cloudflarePages(tag, sinceIso, untilIso);
         section.totalViews = section.pages.reduce((n, p) => n + p.views, 0);
         console.error(`${config.name}: ${section.totalViews} pageview(s)`);
       } catch (err) {
