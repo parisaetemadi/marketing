@@ -277,6 +277,19 @@ module.exports = {
            stationery question in a planning community is ordinary
            helpfulness here, not intrusion. */
         state: "planning — months of lead time, researching, comparing, DIY-inclined",
+        /* This segment plans on Instagram, TikTok and Pinterest, and the
+           product makes a physical, photographable object — the booklet is the
+           content. Pinterest is likely the best of the three despite being the
+           least fashionable: a pin keeps sending traffic for years where an
+           Instagram post is finished in two days, and "wedding order of service
+           template" is a Pinterest search, not a scroll.
+
+           Social is right for THIS segment and wrong for the bereaved one —
+           nobody arranging a funeral on Tuesday is scrolling for stationery.
+           The exception is that funeral directors and celebrants are on
+           Instagram themselves, so social can serve the partnership channel
+           there without ever addressing a grieving family. */
+        social: ["pinterest", "instagram", "tiktok"],
         mustMatch: /order of service|ceremony program|wedding program|ceremony booklet|order.?of.?service/i,
         tone: "warm and practical; templates, budgets and printing tips",
         solicit: true,

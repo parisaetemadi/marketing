@@ -121,6 +121,45 @@ async function cloudflarePages(sinceIso, untilIso) {
   }));
 }
 
+/* Where visitors came from. Worth its own query because the channel question
+   — does Instagram actually send anyone, or does it just feel like it should —
+   is not answerable by staring at pageview counts, and is the one thing that
+   would settle an argument about where to spend a weekend. */
+async function cloudflareReferrers(sinceIso, untilIso) {
+  const query = `
+    query Referrers($account: String!, $since: Time!, $until: Time!) {
+      viewer {
+        accounts(filter: { accountTag: $account }) {
+          rumPageloadEventsAdaptiveGroups(
+            filter: { datetime_geq: $since, datetime_leq: $until }
+            limit: 200
+            orderBy: [count_DESC]
+          ) {
+            count
+            dimensions { requestHost refererHost }
+          }
+        }
+      }
+    }`;
+
+  const res = await fetch("https://api.cloudflare.com/client/v4/graphql", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + CF_TOKEN, "Content-Type": "application/json" },
+    body: JSON.stringify({ query, variables: { account: CF_ACCOUNT, since: sinceIso, until: untilIso } }),
+  });
+  if (!res.ok) throw new Error(`Cloudflare HTTP ${res.status}`);
+  const body = await res.json();
+  if (body.errors && body.errors.length) {
+    throw new Error("Cloudflare GraphQL: " + body.errors.map((e) => e.message).join("; "));
+  }
+  const account = body.data?.viewer?.accounts?.[0];
+  return (account?.rumPageloadEventsAdaptiveGroups || []).map((g) => ({
+    host: g.dimensions.requestHost,
+    referer: g.dimensions.refererHost || "(direct or unknown)",
+    views: g.count,
+  }));
+}
+
 /* --- Stripe -------------------------------------------------------------- */
 
 /* Charges rather than checkout sessions, because a restricted key scoped to
@@ -181,6 +220,13 @@ function render(sections, args, notes) {
       lines.push("", `**${s.totalViews} pageviews** across ${s.pages.length} paths.`, "");
     }
 
+    if (s.referrers && s.referrers.length) {
+      lines.push("<details><summary>Where they came from</summary>", "",
+        "| Source | Views |", "| --- | --- |");
+      for (const r of s.referrers.slice(0, 12)) lines.push(`| ${r.referer} | ${r.views} |`);
+      lines.push("", "</details>", "");
+    }
+
     if (s.salesError) {
       lines.push(`Could not read sales: ${s.salesError}`, "");
     } else {
@@ -219,7 +265,7 @@ function render(sections, args, notes) {
   const sinceIso = since.toISOString().replace(/\.\d+Z$/, "Z");
   const untilIso = until.toISOString().replace(/\.\d+Z$/, "Z");
 
-  let charges = null, chargesError = null, allPages = null;
+  let charges = null, chargesError = null, allPages = null, allRefs = null;
   if (STRIPE_KEY) {
     try {
       const result = await stripeCharges(Math.floor(since.getTime() / 1000));
@@ -260,6 +306,19 @@ function render(sections, args, notes) {
           .filter((p) => p.host === host || p.host === "www." + host)
           .map((p) => ({ path: p.path, views: p.views }));
         section.previews = allPages.filter((p) => /\.pages\.dev$/.test(p.host));
+
+        if (!allRefs) allRefs = await cloudflareReferrers(sinceIso, untilIso).catch((e) => {
+          notes.push("Referrers unavailable: " + e.message);
+          return [];
+        });
+        const byRef = new Map();
+        for (const r of allRefs) {
+          if (r.host !== host && r.host !== "www." + host) continue;
+          byRef.set(r.referer, (byRef.get(r.referer) || 0) + r.views);
+        }
+        section.referrers = [...byRef.entries()]
+          .map(([referer, views]) => ({ referer, views }))
+          .sort((a, b) => b.views - a.views);
         section.totalViews = section.pages.reduce((n, p) => n + p.views, 0);
         console.error(`${config.name}: ${section.totalViews} pageview(s)`);
       } catch (err) {
