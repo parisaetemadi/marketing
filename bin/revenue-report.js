@@ -85,7 +85,16 @@ async function cloudflarePages(siteTag, sinceIso, untilIso) {
   if (!res.ok) throw new Error(`Cloudflare HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const body = await res.json();
   if (body.errors && body.errors.length) {
-    throw new Error("Cloudflare GraphQL: " + body.errors.map((e) => e.message).join("; "));
+    const message = body.errors.map((e) => e.message).join("; ");
+    /* The most likely misconfiguration, and the message alone does not say so.
+       Web Analytics is an account-level dataset, but the obvious token
+       template ("Read analytics and logs") only grants zone-level scopes, so a
+       token made that way authenticates fine and then cannot see anything. */
+    if (/not authorized for that account|Authentication error/i.test(message)) {
+      throw new Error(message + " — the token needs Account → Account Analytics → Read. " +
+        "The 'Read analytics and logs' template is zone-scoped and does not include it.");
+    }
+    throw new Error("Cloudflare GraphQL: " + message);
   }
   const account = body.data && body.data.viewer && body.data.viewer.accounts && body.data.viewer.accounts[0];
   if (!account) throw new Error("Cloudflare returned no account — check CF_ACCOUNT_ID and the token's scope");
