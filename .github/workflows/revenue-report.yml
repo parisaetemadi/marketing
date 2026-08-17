@@ -1,0 +1,46 @@
+name: Traffic and sales
+
+# Mondays, after the outreach digest. Reads Cloudflare Web Analytics for
+# traffic and Stripe for sales, and files them side by side per product.
+#
+# It does not attribute sales to pages and does not pretend to — Web Analytics
+# is cookieless, so there is no visitor to follow from a guide to a purchase.
+# See the header of bin/revenue-report.js for how to close that gap properly.
+
+on:
+  schedule:
+    - cron: "0 10 * * 1"
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "How many days back to report"
+        required: false
+        default: "7"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build the report
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          STRIPE_API_KEY: ${{ secrets.STRIPE_API_KEY }}
+        run: node bin/revenue-report.js --days "${{ github.event.inputs.days || 7 }}" --out report.md
+
+      - name: File it
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Traffic and sales — week of $(date -u +%Y-%m-%d)"
+          gh issue create --title "$title" --body-file report.md --label revenue \
+            || gh issue create --title "$title" --body-file report.md

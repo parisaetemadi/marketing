@@ -48,6 +48,16 @@ module.exports = {
       forbiddenOn: ["/app"],
     },
 
+    /* The Web Analytics site tag — the same token in the data-cf-beacon
+       attribute on the pages. bin/revenue-report.js queries traffic by it. */
+    analyticsSiteTag: "4d332798ff3e4668b369ee228a028824",
+
+    /* Prices in cents, used to tell this product's Stripe charges from the
+       other one's. Works only because the price points are distinct; if the
+       two products ever share a price this needs replacing with payment-link
+       or product-id matching. */
+    stripeAmounts: [2900, 7900],
+
     /* Cloudflare Pages publishes the whole directory, so these are served at
        the live domain unless .assetsignore excludes them. A private repo does
        not make a public deploy private. */
@@ -188,6 +198,9 @@ module.exports = {
       ],
       forbiddenOn: ["/app.html"],
     },
+
+    analyticsSiteTag: "de55ac01e2db4343b8476843469716ff",
+    stripeAmounts: [3000],
 
     /* Already excluded via .assetsignore — the check keeps it that way. */
     neverPublish: ["README.md", "CLAUDE.md", "scripts/", "worker/", ".github/"],
