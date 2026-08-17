@@ -220,9 +220,13 @@ function render(sections, args, notes) {
       if (result.refundedCount) {
         notes.push(`${result.refundedCount} refunded charge(s) not counted.`);
       }
-      if (!process.env.EXCLUDE_EMAILS) {
-        notes.push("EXCLUDE_EMAILS is not set — your own test purchases, if any, " +
-          "are being counted as sales. Set it as a repo secret to filter them out.");
+      /* Only worth saying when something is actually being counted. Refunds
+         are already excluded, so a founder who refunds their own tests never
+         needs this — nagging them weekly about it is how a report stops being
+         read. */
+      if (!process.env.EXCLUDE_EMAILS && charges.length) {
+        notes.push(`${charges.length} charge(s) counted as sales. If any are your own ` +
+          "and were not refunded, set EXCLUDE_EMAILS as a repo secret to filter them.");
       }
     } catch (err) {
       chargesError = err.message;
