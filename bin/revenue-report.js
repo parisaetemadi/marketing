@@ -21,8 +21,13 @@
  * gap. See the note the report prints.
  *
  * Needs, as repo secrets:
- *   CF_API_TOKEN     Cloudflare → API Tokens → "Read analytics and logs"
- *   STRIPE_API_KEY   Stripe → restricted key, read on Charges
+ *   CF_API_TOKEN     Cloudflare API token. It must include an ACCOUNT-scoped
+ *                    permission — Account Analytics: Read — not just the
+ *                    zone-scoped Zone Analytics, and its Account Resources
+ *                    must include the account. Web Analytics is account-level.
+ *   STRIPE_API_KEY   Stripe restricted key, read on Charges
+ *   EXCLUDE_EMAILS   Optional, comma-separated. Your own addresses, so test
+ *                    purchases are not reported back to you as revenue.
  *
  * Usage:
  *   node bin/revenue-report.js --days 7
@@ -116,7 +121,28 @@ async function stripeCharges(sinceTs) {
   const res = await fetch(url, { headers: { Authorization: "Bearer " + STRIPE_KEY } });
   if (!res.ok) throw new Error(`Stripe HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const body = await res.json();
-  return (body.data || []).filter((c) => c.paid && c.status === "succeeded");
+
+  const paid = (body.data || []).filter((c) => c.paid && c.status === "succeeded");
+
+  /* Your own test purchases are real charges on a real card, so nothing in the
+     Stripe data distinguishes them from a customer. Left in, they are reported
+     as revenue — which is worse than reporting nothing, because a founder
+     checking their own numbers is exactly the person who will believe them.
+     Set EXCLUDE_EMAILS (comma-separated) as a repo secret; it stays out of
+     this repo, which is public. */
+  const excluded = (process.env.EXCLUDE_EMAILS || "")
+    .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+
+  const kept = paid.filter((c) => {
+    const email = ((c.billing_details && c.billing_details.email) || c.receipt_email || "").toLowerCase();
+    return !(email && excluded.includes(email));
+  });
+
+  /* Refunded charges are not sales either — a test you refunded is a round
+     trip, not revenue. */
+  const real = kept.filter((c) => !c.refunded);
+
+  return { all: paid, real, excludedCount: paid.length - kept.length, refundedCount: kept.length - real.length };
 }
 
 /* --- report -------------------------------------------------------------- */
@@ -185,8 +211,19 @@ function render(sections, args, notes) {
   let charges = null, chargesError = null;
   if (STRIPE_KEY) {
     try {
-      charges = await stripeCharges(Math.floor(since.getTime() / 1000));
-      console.error(`stripe: ${charges.length} succeeded charge(s)`);
+      const result = await stripeCharges(Math.floor(since.getTime() / 1000));
+      charges = result.real;
+      console.error(`stripe: ${result.all.length} succeeded, ${charges.length} counted as sales`);
+      if (result.excludedCount) {
+        notes.push(`${result.excludedCount} charge(s) excluded as your own (EXCLUDE_EMAILS).`);
+      }
+      if (result.refundedCount) {
+        notes.push(`${result.refundedCount} refunded charge(s) not counted.`);
+      }
+      if (!process.env.EXCLUDE_EMAILS) {
+        notes.push("EXCLUDE_EMAILS is not set — your own test purchases, if any, " +
+          "are being counted as sales. Set it as a repo secret to filter them out.");
+      }
     } catch (err) {
       chargesError = err.message;
       console.error("stripe FAILED: " + err.message);
