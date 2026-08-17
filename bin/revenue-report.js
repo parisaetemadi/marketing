@@ -56,56 +56,30 @@ function money(cents, currency) {
 
 /* --- Cloudflare ---------------------------------------------------------- */
 
-/* Web Analytics has TWO identifiers and they are not interchangeable:
+/* Grouped by host as well as path, with no siteTag filter.
 
-     site_token  the value in the data-cf-beacon attribute on the pages
-     site_tag    the value the GraphQL RUM dataset filters on
+   The obvious approach — filter by the site's id — needs the site_tag, which
+   is NOT the site_token sitting in the beacon tag on the pages. Resolving one
+   to the other means the RUM REST endpoint, which needs a Web Analytics: Read
+   permission separate from the Account Analytics: Read that GraphQL needs.
+   Two permissions and a lookup, to reach data the account can already see.
 
-   Assuming they were the same produced a query that authenticated correctly,
-   returned no error, and matched nothing — so the report said "no pageviews"
-   for sites doing hundreds a month. A filter that silently matches nothing is
-   the worst kind of wrong, because it looks like an answer.
-
-   This resolves one to the other via the RUM site list, keyed on the token,
-   which is the value the sites actually carry. Cached per run. */
-const siteTagCache = new Map();
-
-async function resolveSiteTag(siteToken) {
-  if (siteTagCache.has(siteToken)) return siteTagCache.get(siteToken);
-
-  const url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT}/rum/site_info/list?per_page=100`;
-  const res = await fetch(url, { headers: { Authorization: "Bearer " + CF_TOKEN } });
-  if (!res.ok) throw new Error(`Cloudflare site list HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
-
-  const body = await res.json();
-  if (!body.success) {
-    throw new Error("Cloudflare site list: " + (body.errors || []).map((e) => e.message).join("; "));
-  }
-
-  for (const site of body.result || []) {
-    if (site.site_token) siteTagCache.set(site.site_token, site.site_tag);
-  }
-
-  const tag = siteTagCache.get(siteToken);
-  if (!tag) {
-    throw new Error(`no Web Analytics site matches the beacon token ${siteToken.slice(0, 8)}… — ` +
-      `the account has ${(body.result || []).length} site(s); check analyticsSiteTag in sites.js`);
-  }
-  return tag;
-}
-
-async function cloudflarePages(siteTag, sinceIso, untilIso) {
+   Grouping by requestHost instead skips all of it: one query returns every
+   site in the account, and each product is picked out by its own hostname,
+   which sites.js already knows. It also makes preview traffic visible
+   (quillbill.pages.dev and friends) instead of silently folding it in. */
+async function cloudflarePages(sinceIso, untilIso) {
   const query = `
-    query PageViews($account: String!, $siteTag: String!, $since: Time!, $until: Time!) {
+    query PageViews($account: String!, $since: Time!, $until: Time!) {
       viewer {
         accounts(filter: { accountTag: $account }) {
           rumPageloadEventsAdaptiveGroups(
-            filter: { siteTag: $siteTag, datetime_geq: $since, datetime_leq: $until }
-            limit: 100
+            filter: { datetime_geq: $since, datetime_leq: $until }
+            limit: 500
             orderBy: [count_DESC]
           ) {
             count
-            dimensions { requestPath }
+            dimensions { requestHost requestPath }
           }
         }
       }
@@ -119,7 +93,7 @@ async function cloudflarePages(siteTag, sinceIso, untilIso) {
     },
     body: JSON.stringify({
       query,
-      variables: { account: CF_ACCOUNT, siteTag, since: sinceIso, until: untilIso },
+      variables: { account: CF_ACCOUNT, since: sinceIso, until: untilIso },
     }),
   });
 
@@ -141,6 +115,7 @@ async function cloudflarePages(siteTag, sinceIso, untilIso) {
   if (!account) throw new Error("Cloudflare returned no account — check CF_ACCOUNT_ID and the token's scope");
 
   return (account.rumPageloadEventsAdaptiveGroups || []).map((g) => ({
+    host: g.dimensions.requestHost,
     path: g.dimensions.requestPath,
     views: g.count,
   }));
@@ -244,7 +219,7 @@ function render(sections, args, notes) {
   const sinceIso = since.toISOString().replace(/\.\d+Z$/, "Z");
   const untilIso = until.toISOString().replace(/\.\d+Z$/, "Z");
 
-  let charges = null, chargesError = null;
+  let charges = null, chargesError = null, allPages = null;
   if (STRIPE_KEY) {
     try {
       const result = await stripeCharges(Math.floor(since.getTime() / 1000));
@@ -279,8 +254,12 @@ function render(sections, args, notes) {
     else if (!siteTag) section.error = "no analyticsSiteTag in sites.js";
     else {
       try {
-        const tag = await resolveSiteTag(siteTag);
-        section.pages = await cloudflarePages(tag, sinceIso, untilIso);
+        if (!allPages) allPages = await cloudflarePages(sinceIso, untilIso);
+        const host = config.origin.replace(/^https?:\/\//, "");
+        section.pages = allPages
+          .filter((p) => p.host === host || p.host === "www." + host)
+          .map((p) => ({ path: p.path, views: p.views }));
+        section.previews = allPages.filter((p) => /\.pages\.dev$/.test(p.host));
         section.totalViews = section.pages.reduce((n, p) => n + p.views, 0);
         console.error(`${config.name}: ${section.totalViews} pageview(s)`);
       } catch (err) {
