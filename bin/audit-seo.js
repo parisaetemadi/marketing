@@ -293,6 +293,32 @@ async function checkNeverPublishedLive(config, report) {
   }
 }
 
+/* The og:image tag being present and the og:image actually loading are two
+   different facts, and only the second one matters to a link preview.
+
+   Checking the format catches an SVG; it does not catch a 404, a path typo, or
+   an image that never deployed. Those fail exactly the same way from the
+   outside — a bare grey card — and you find out when someone shares your
+   product and it looks broken. */
+async function checkSocialImagesLive(pages, report) {
+  const seen = new Set();
+  for (const page of pages) {
+    const url = page.og && page.og.image;
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+
+    try {
+      const res = await get(url, { attempts: 2, timeout: 15000 });
+      const type = (res.headers && res.headers.get("content-type")) || "";
+      if (!/^image\//i.test(type)) {
+        report.fail(page.served, "og:image", `${url} returned ${type || "no content-type"} rather than an image`);
+      }
+    } catch (err) {
+      report.fail(page.served, "og:image", `${url} does not load: ${err.message}`);
+    }
+  }
+}
+
 /* --- output ------------------------------------------------------------- */
 
 function printReport(report) {
@@ -364,7 +390,10 @@ function toMarkdown(reports) {
     checkPurity(source.pages, config, source.root, report);
     checkAnalytics(source.pages, config, report);
     checkNeverPublished(source, config, report);
-    if (source.mode === "origin") await checkNeverPublishedLive(config, report);
+    if (source.mode === "origin") {
+      await checkNeverPublishedLive(config, report);
+      await checkSocialImagesLive(source.pages, report);
+    }
     if (source.mode === "dir") checkInternalLinks(source.pages, source.root, report);
 
     console.log(`${config.name}: checked ${source.pages.length} page(s) via ${source.mode}`);
