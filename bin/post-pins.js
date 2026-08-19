@@ -89,6 +89,16 @@ function readJson(file, fallback) {
   }
 }
 
+/* A credential from the environment, with the whitespace taken off.
+
+   Tokens get copied out of a web page and pasted into a secrets box, and a
+   trailing newline survives that journey more often than anyone expects. The
+   API's answer to a token with a newline on the end is indistinguishable from
+   its answer to a wrong token, so trim first and rule it out. */
+function cred(name) {
+  return (process.env[name] || "").trim();
+}
+
 let accessToken = null;
 
 /* Trade the long-lived refresh token for a short-lived access token.
@@ -98,10 +108,25 @@ let accessToken = null;
    that has to be kept secret over time is the refresh token, and that only
    ever exists as a secret in the environment. */
 async function refreshAccessToken(args) {
-  const id = process.env.PINTEREST_APP_ID;
-  const secret = process.env.PINTEREST_APP_SECRET;
-  const refresh = process.env.PINTEREST_REFRESH_TOKEN;
+  const id = cred("PINTEREST_APP_ID");
+  const secret = cred("PINTEREST_APP_SECRET");
+  const refresh = cred("PINTEREST_REFRESH_TOKEN");
   const base = args.sandbox ? SANDBOX : LIVE;
+
+  /* Pinterest hands you two tokens on the same screen and they look alike.
+     Sending the access token where the refresh token belongs is rejected as
+     "The authorization grant is invalid", which describes the protocol rather
+     than the mistake. The prefixes tell them apart, so say so plainly. */
+  if (/^pina_/.test(refresh)) {
+    throw new Error(
+      "PINTEREST_REFRESH_TOKEN holds an access token, not a refresh token.\n" +
+      "  Pinterest shows both on the same screen. The refresh token is the longer\n" +
+      "  one beginning pinr_; the one beginning pina_ is the access token.\n" +
+      "  Either put the pinr_ value in PINTEREST_REFRESH_TOKEN, or — to get going\n" +
+      "  today — put the pina_ value in PINTEREST_ACCESS_TOKEN instead and sort the\n" +
+      "  refresh token out before it expires in about thirty days."
+    );
+  }
 
   const res = await send(base + "/oauth/token", {
     method: "POST",
@@ -113,21 +138,30 @@ async function refreshAccessToken(args) {
   });
   if (!res.ok || !res.json || !res.json.access_token) {
     const detail = res.json && res.json.message ? res.json.message : res.body.slice(0, 300);
-    throw new Error(`could not refresh the Pinterest token (${res.status}): ${detail}\n` +
-      "  Refresh tokens last about a year. If this one has expired, generate a new one\n" +
-      "  in the app at developers.pinterest.com and replace the PINTEREST_REFRESH_TOKEN secret.");
+    throw new Error(`could not refresh the Pinterest token (${res.status}): ${detail}\n\n` +
+      "  Pinterest says the same thing for every cause, so here they are, likeliest first:\n" +
+      "    1. The value is an access token rather than a refresh token. The refresh one\n" +
+      "       begins pinr_, the access one pina_.\n" +
+      "    2. The app id or secret belongs to a different app than the token does.\n" +
+      "    3. The token was issued in the sandbox and used against the live API, or the\n" +
+      "       reverse. --sandbox picks which one this run talks to.\n" +
+      "    4. The token was truncated or picked up a stray character when pasted.\n" +
+      "    5. It genuinely expired. Refresh tokens last about a year; generate a new one\n" +
+      "       at developers.pinterest.com and replace the secret.\n\n" +
+      "  To get posting today without solving this: put the access token in\n" +
+      "  PINTEREST_ACCESS_TOKEN. It works for about thirty days and takes priority.");
   }
   return res.json.access_token;
 }
 
 /* Whichever credential is present, resolved once per run. */
 async function authorise(args) {
-  if (process.env.PINTEREST_ACCESS_TOKEN) {
-    accessToken = process.env.PINTEREST_ACCESS_TOKEN;
+  if (cred("PINTEREST_ACCESS_TOKEN")) {
+    accessToken = cred("PINTEREST_ACCESS_TOKEN");
     return "access token";
   }
-  if (process.env.PINTEREST_APP_ID && process.env.PINTEREST_APP_SECRET &&
-      process.env.PINTEREST_REFRESH_TOKEN) {
+  if (cred("PINTEREST_APP_ID") && cred("PINTEREST_APP_SECRET") &&
+      cred("PINTEREST_REFRESH_TOKEN")) {
     accessToken = await refreshAccessToken(args);
     return "refresh token";
   }
