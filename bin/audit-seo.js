@@ -319,6 +319,37 @@ async function checkSocialImagesLive(pages, report) {
   }
 }
 
+/* The redirects that make one canonical home out of four possible ones:
+   http, https, www and bare. Search Console reports these as "Page with
+   redirect", which reads like a problem and is the opposite — it means they
+   work. Worth checking precisely because a silent break here splits the site
+   into duplicates and nothing else would notice. */
+async function checkCanonicalHostLive(config, report) {
+  const canonical = config.origin.replace(/\/$/, "");
+  const host = canonical.replace(/^https?:\/\//, "");
+  const variants = [`http://${host}/`, `http://www.${host}/`, `https://www.${host}/`];
+
+  for (const url of variants) {
+    try {
+      const res = await fetch(url, { redirect: "manual" });
+      const location = res.headers.get("location");
+
+      if (res.status >= 300 && res.status < 400 && location) {
+        const target = new URL(location, url).href.replace(/\/$/, "");
+        if (target !== canonical && target !== canonical + "/") {
+          report.warn(url, "canonical-host", `redirects to ${target}, not ${canonical}`);
+        }
+      } else if (res.status === 200) {
+        report.fail(url, "canonical-host",
+          `serves a page directly instead of redirecting to ${canonical} — ` +
+          "the same content on two hostnames splits its ranking between them");
+      }
+    } catch (err) {
+      /* A variant that does not resolve at all is fine: nothing to duplicate. */
+    }
+  }
+}
+
 /* --- output ------------------------------------------------------------- */
 
 function printReport(report) {
@@ -393,6 +424,7 @@ function toMarkdown(reports) {
     if (source.mode === "origin") {
       await checkNeverPublishedLive(config, report);
       await checkSocialImagesLive(source.pages, report);
+      await checkCanonicalHostLive(config, report);
     }
     if (source.mode === "dir") checkInternalLinks(source.pages, source.root, report);
 
