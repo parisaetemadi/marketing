@@ -235,8 +235,16 @@ It also prints the scopes Pinterest actually granted and says so if
 at the time, so a scope added afterwards needs a fresh approval, and a token
 that cannot post looks exactly like a token that can until it fails.
 
+It asks for the app id and secret on the terminal rather than reading them
+from the environment, because getting a secret into an environment variable is
+— empirically — the hardest step of this whole setup. `export` leaves it in
+shell history; `read -rs` prints no prompt and swallows the newline of anything
+pasted after it, so it returns empty and looks like it worked. Both failures
+surface much later as an authentication error. It still honours
+`PINTEREST_APP_ID` and `PINTEREST_APP_SECRET` if they are already set, and on
+anything without a terminal it errors rather than hanging on a prompt.
+
 ```bash
-export PINTEREST_APP_ID=… PINTEREST_APP_SECRET=…
 node bin/pinterest-auth.js
 node bin/pinterest-auth.js --code <code> --redirect https://your.url/here
 ```
@@ -367,15 +375,17 @@ appears in this repo at all.
    you:
 
    ```bash
-   export PINTEREST_APP_ID=…            # in the terminal, not in a file
-   export PINTEREST_APP_SECRET=…
    node bin/pinterest-auth.js
    ```
 
-   It prints a link, waits, and catches Pinterest's answer. Approve the app in
-   the browser and it prints the refresh token and stops — nothing is written
-   to disk. First register `http://localhost:8385/callback` as a redirect URI
-   on the app; if Pinterest refuses a localhost URI, see
+   It asks for the app id and secret — both are on the app's page, and the
+   secret is not echoed as you type it. Then it prints a link, waits, and
+   catches Pinterest's answer. Approve the app in the browser and it prints the
+   refresh token and stops. Nothing is written to disk and nothing goes into
+   your shell history.
+
+   First register `http://localhost:8385/callback` as a redirect URI on the
+   app; if Pinterest refuses a localhost URI, see
    [`bin/pinterest-auth.js`](bin/pinterest-auth.js) for the manual route.
 
    An access token stops working after about a month, which for something
