@@ -15,9 +15,15 @@
  *   1. Register a redirect URI on the app at developers.pinterest.com.
  *      Try http://localhost:8385/callback first — if Pinterest refuses it,
  *      see --code below.
- *   2. export PINTEREST_APP_ID=… PINTEREST_APP_SECRET=…
- *   3. node bin/pinterest-auth.js
+ *   2. node bin/pinterest-auth.js
+ *   3. Give it the app id and secret when it asks. The secret is not echoed.
  *   4. Approve in the browser it opens.
+ *
+ * It asks rather than reading the environment because getting a secret into an
+ * environment variable is, empirically, the hardest step here: `export` leaves
+ * it in shell history, and `read -rs` prints no prompt and eats the newline of
+ * anything pasted after it, so it silently returns empty. PINTEREST_APP_ID and
+ * PINTEREST_APP_SECRET are still honoured if they are already set.
  *
  * It prints the refresh token to your terminal and stops. It writes nothing to
  * disk: the only copy that should outlive the run is the one you paste into the
@@ -35,6 +41,7 @@
 
 const http = require("http");
 const crypto = require("crypto");
+const readline = require("readline");
 const { execFile } = require("child_process");
 const { send } = require("../lib/fetch");
 
@@ -67,15 +74,71 @@ function cred(name) {
   return (process.env[name] || "").trim();
 }
 
+/* Ask for a value on the terminal, optionally without echoing it.
+
+   This exists because getting a secret into an environment variable turns out
+   to be the hardest step of the whole setup. `export FOO=…` puts it in shell
+   history; `read -rs` shows no prompt and swallows the newline of whatever was
+   pasted after it, so it returns empty and looks like it worked. Neither
+   failure announces itself, and both leave you staring at an authentication
+   error much later.
+
+   Asking here sidesteps all of it: nothing reaches the shell, nothing reaches
+   history, and an empty answer is caught immediately. */
+function ask(question, hidden) {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({
+      input: process.stdin, output: process.stderr, terminal: true,
+    });
+    if (hidden) {
+      /* readline writes each keystroke back to the output; replace that with
+         writing nothing but the prompt itself. */
+      rl._writeToOutput = (chunk) => {
+        if (chunk.includes(question)) rl.output.write(question);
+      };
+    }
+    rl.question(question, (answer) => {
+      rl.close();
+      if (hidden) process.stderr.write("\n");
+      resolve(String(answer).trim());
+    });
+  });
+}
+
+/* The app id and secret, from the environment or from the person running this.
+
+   Prompting needs a terminal. On CI there isn't one, and a prompt would hang
+   a job until it timed out — so there it stays an error with instructions. */
+async function appCredentials() {
+  let id = cred("PINTEREST_APP_ID");
+  let secret = cred("PINTEREST_APP_SECRET");
+  if (id && secret) return { id, secret };
+
+  if (!process.stdin.isTTY) {
+    throw new Error(
+      "PINTEREST_APP_ID and PINTEREST_APP_SECRET are needed to do this, and\n" +
+      "  there is no terminal here to ask on. Both are on the app's page at\n" +
+      "  developers.pinterest.com."
+    );
+  }
+
+  console.error("Both of these are on the app's page at developers.pinterest.com.");
+  console.error("Nothing typed here is stored, echoed, or written to disk.\n");
+  if (!id) id = await ask("App id: ", false);
+  if (!secret) secret = await ask("App secret (hidden): ", true);
+
+  if (!id || !secret) throw new Error("both an app id and an app secret are needed.");
+  return { id, secret };
+}
+
 /* Trade the authorisation code for tokens. Same endpoint the poster uses to
    refresh, different grant. */
-async function exchange(args, code) {
+async function exchange(args, code, app) {
   const base = args.sandbox ? SANDBOX : LIVE;
   const res = await send(base + "/oauth/token", {
     method: "POST",
     headers: {
-      "Authorization": "Basic " + Buffer.from(
-        `${cred("PINTEREST_APP_ID")}:${cred("PINTEREST_APP_SECRET")}`).toString("base64"),
+      "Authorization": "Basic " + Buffer.from(`${app.id}:${app.secret}`).toString("base64"),
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: new URLSearchParams({
@@ -130,7 +193,7 @@ function report(tokens) {
    Bound to 127.0.0.1 rather than every interface: for the ninety seconds this
    is up it is holding an authorisation code, and there is no reason for anyone
    else on the network to be able to reach it. */
-function waitForCode(args, state) {
+function waitForCode(args, state, app) {
   return new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
       const url = new URL(req.url, `http://localhost:${args.port}`);
@@ -184,7 +247,7 @@ function waitForCode(args, state) {
 
     server.listen(args.port, "127.0.0.1", () => {
       const url = AUTHORIZE + "?" + new URLSearchParams({
-        client_id: cred("PINTEREST_APP_ID"),
+        client_id: app.id,
         redirect_uri: args.redirect,
         response_type: "code",
         scope: SCOPES.join(","),
@@ -209,21 +272,11 @@ function waitForCode(args, state) {
 
 (async () => {
   const args = parseArgs(process.argv.slice(2));
-
-  if (!cred("PINTEREST_APP_ID") || !cred("PINTEREST_APP_SECRET")) {
-    console.error(
-      "PINTEREST_APP_ID and PINTEREST_APP_SECRET are needed to do this.\n" +
-      "  Both are on the app's page at developers.pinterest.com. Export them in\n" +
-      "  this terminal rather than putting them in a file:\n\n" +
-      "    export PINTEREST_APP_ID=…\n" +
-      "    export PINTEREST_APP_SECRET=…"
-    );
-    process.exit(2);
-  }
+  const app = await appCredentials();
 
   /* The manual path, for when Pinterest will not register a localhost URI. */
   if (args.code) {
-    report(await exchange(args, args.code));
+    report(await exchange(args, args.code, app));
     return;
   }
 
@@ -236,9 +289,9 @@ function waitForCode(args, state) {
   console.error("This must already be registered on the app, character for character.\n");
 
   const state = crypto.randomBytes(16).toString("hex");
-  const code = await waitForCode(args, state);
+  const code = await waitForCode(args, state, app);
   console.error("\nGot the code. Trading it in …");
-  report(await exchange(args, code));
+  report(await exchange(args, code, app));
 })().catch((err) => {
   console.error("\n" + err.message);
   process.exit(1);
