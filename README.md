@@ -371,6 +371,23 @@ That is the whole setup. From then on, a pin goes out on Monday, Wednesday and
 Friday morning, in the order `sites.js` lists them, and the workflow records
 what it sent so nothing goes twice.
 
+### When Pinterest says "The authorization grant is invalid"
+
+That is Pinterest's answer to every bad refresh token, whatever is actually
+wrong with it. `--verify` prints the causes in order of likelihood; the first
+one accounts for most of them.
+
+Pinterest shows an access token and a refresh token on the same screen and
+they look alike. The refresh token begins `pinr_`, the access token `pina_`,
+and the two are not interchangeable — `PINTEREST_REFRESH_TOKEN` holding a
+`pina_` value is rejected with that message. The tool now names that case
+outright rather than leaving you to compare strings.
+
+If you want to be posting today and sort the refresh token out later, put the
+access token in `PINTEREST_ACCESS_TOKEN`. It takes priority over the refresh
+credentials and works for about thirty days — long enough that the queue
+starts moving, short enough that it is not a solution.
+
 ### If you would rather check it first
 
 With the token exported in your own shell:
