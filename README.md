@@ -231,10 +231,16 @@ twice posts nothing the second time, and a missed run catches up at the cap
 rather than dumping a fortnight of pins in one afternoon.
 
 ```bash
+node bin/post-pins.js --verify               # credentials and boards, posting nothing
 node bin/post-pins.js                        # dry run: what is due
 node bin/post-pins.js --sandbox --post       # rehearse against Pinterest's sandbox
 node bin/post-pins.js --post --max 1
 ```
+
+`--verify` is the one to run after setting the secrets up. It exchanges the
+token, names the account it belongs to, and checks every board the queue needs
+actually exists — the plain dry run proves none of that, because it stops
+before authorising.
 
 Setup is [below](#pinterest-the-one-thing-that-needs-you).
 
@@ -246,7 +252,7 @@ Setup is [below](#pinterest-the-one-thing-that-needs-you).
 | `site-audit.yml` | Mondays 07:00 UTC | Audits both live sites, opens an issue only on failures |
 | `price-check.yml` | 1st of the month | Re-checks every price the guides quote |
 | `pins.yml` | 1st of the month | Renders a month of pins, uploads them as an artifact |
-| `pins-post.yml` | Mon/Wed/Fri 10:00 UTC | Posts the next pin, if a Pinterest token exists |
+| `pins-post.yml` | Mon/Wed/Fri 10:00 UTC | Posts the next pin; a manual run verifies the setup instead |
 | `audit-site.yml` | Called by a product repo | Gates that repo's PRs on the audit |
 
 All of them run on `GITHUB_TOKEN`, already present on the runner. No third-party
@@ -348,8 +354,18 @@ appears in this repo at all.
    | `PINTEREST_APP_SECRET` | from the app page |
    | `PINTEREST_REFRESH_TOKEN` | the refresh token from step 4 |
 
+   **Secrets, not Variables.** They are two different tabs on that page. The
+   workflow reads `secrets.PINTEREST_*`, so anything added as a variable is
+   invisible to it — and a variable is not masked in logs, which is not where
+   a token belongs.
+
    **Do not paste any of these into a chat, a file, or a commit.** They go in
    that form and nowhere else. This repo is public.
+
+6. **Check it.** Actions → **Post a pin** → Run workflow, leaving the mode on
+   `verify`. It proves the credentials work, names the account, and lists which
+   boards it found — and posts nothing. A manual run defaults to verifying for
+   exactly that reason; the schedule posts.
 
 That is the whole setup. From then on, a pin goes out on Monday, Wednesday and
 Friday morning, in the order `sites.js` lists them, and the workflow records
