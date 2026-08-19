@@ -297,8 +297,11 @@ async function verifyWrite(args, manifest) {
     if (err.status === 401 || err.status === 403) {
       throw new Error(
         `${err.message}\n\n` +
-        "  That is a permissions answer, not a broken token. The app was most\n" +
-        "  likely approved without pins:write or boards:write.\n" +
+        "  That is a permissions answer, not a broken token.\n\n" +
+        "  Note which scope it names. The secret-board test needs\n" +
+        "  boards:write_secret and pins:write_secret, which Pinterest treats as\n" +
+        "  separate from the plain boards:write and pins:write — a token with only\n" +
+        "  the plain pair can post for real but cannot run this test.\n" +
         "    1. Add those scopes to the app at developers.pinterest.com.\n" +
         "    2. Run bin/pinterest-auth.js again — an approval only grants what\n" +
         "       the app asked for at the time, so an existing token does not\n" +
