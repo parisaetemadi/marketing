@@ -47,6 +47,7 @@
  * Usage:
  *   node bin/post-pins.js                      # dry run: what is due
  *   node bin/post-pins.js --verify             # check the credentials, post nothing
+ *   node bin/post-pins.js --verify-write       # …and prove it can create a pin
  *   node bin/post-pins.js --sandbox --post     # prove it end to end
  *   node bin/post-pins.js --post               # publish what is due
  *   node bin/post-pins.js --post --max 1 --ignore-dates
@@ -63,7 +64,7 @@ function parseArgs(argv) {
   const args = {
     manifest: "out/pins/pins.json", ledger: null, post: false,
     max: 3, sandbox: false, createBoards: false, today: null, ignoreDates: false,
-    verify: false,
+    verify: false, verifyWrite: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -72,6 +73,7 @@ function parseArgs(argv) {
     else if (a === "--create-boards") args.createBoards = true;
     else if (a === "--ignore-dates") args.ignoreDates = true;
     else if (a === "--verify") args.verify = true;
+    else if (a === "--verify-write") { args.verify = true; args.verifyWrite = true; }
     else if (a === "--manifest") args.manifest = argv[++i];
     else if (a === "--ledger") args.ledger = argv[++i];
     else if (a === "--max") args.max = Math.max(1, Number(argv[++i]) || 3);
@@ -253,6 +255,81 @@ async function postPin(args, row, boardId) {
   });
 }
 
+/* Prove the token can actually create a pin, without publishing one.
+
+   Read access and write access look identical until the moment you need the
+   second one. Listing boards succeeds with a read-only token, so a green
+   verify says nothing about whether the first scheduled post will work — and
+   finding out at 10:00 on a Monday, from a failed workflow, is the whole thing
+   this tool exists to avoid.
+
+   So: make a SECRET board, put a real pin on it, then delete both. Secret
+   boards are not visible to anyone but the account holder, so nothing is
+   published even for the second the pin exists. It exercises the exact calls
+   the poster makes — same endpoint, same base64 image upload, same fields —
+   rather than a proxy for them.
+
+   Cleanup runs even when the middle fails, and whatever it could not remove is
+   named in the output. A leftover on a secret board is invisible, but it
+   should not be a mystery. */
+async function verifyWrite(args, manifest) {
+  const sample = manifest[0];
+  if (!sample) throw new Error("no pins in the manifest to test with.");
+  if (!fs.existsSync(sample.file)) {
+    throw new Error(`no image at ${sample.file} — run bin/make-pins.js first.`);
+  }
+
+  let boardId = null;
+  let pinId = null;
+  try {
+    const board = await api(args, "POST", "/boards", {
+      name: `Setup check ${new Date().toISOString().slice(0, 16)}`,
+      description: "Created by bin/post-pins.js --verify-write. Deleted straight away.",
+      privacy: "SECRET",
+    });
+    boardId = board.id;
+    console.error(`✓ created a secret board (${boardId})`);
+
+    const pin = await postPin(args, sample, boardId);
+    pinId = pin.id;
+    console.error(`✓ created a pin on it (${pinId})`);
+  } catch (err) {
+    if (err.status === 401 || err.status === 403) {
+      throw new Error(
+        `${err.message}\n\n` +
+        "  That is a permissions answer, not a broken token. The app was most\n" +
+        "  likely approved without pins:write or boards:write.\n" +
+        "    1. Add those scopes to the app at developers.pinterest.com.\n" +
+        "    2. Run bin/pinterest-auth.js again — an approval only grants what\n" +
+        "       the app asked for at the time, so an existing token does not\n" +
+        "       gain a scope added afterwards.\n" +
+        "    3. Replace the secret and run this again."
+      );
+    }
+    throw err;
+  } finally {
+    /* Best effort, loudest possible failure. */
+    if (pinId) {
+      try {
+        await api(args, "DELETE", `/pins/${pinId}`);
+        console.error("✓ deleted the pin");
+      } catch (err) {
+        console.error(`⚠ could not delete the test pin ${pinId}: ${err.message}`);
+        console.error("  It is on a secret board, so nobody can see it — but delete it by hand.");
+      }
+    }
+    if (boardId) {
+      try {
+        await api(args, "DELETE", `/boards/${boardId}`);
+        console.error("✓ deleted the secret board");
+      } catch (err) {
+        console.error(`⚠ could not delete the test board ${boardId}: ${err.message}`);
+        console.error("  Delete it by hand; it is secret, so it is not visible to anyone else.");
+      }
+    }
+  }
+}
+
 /* Prove the whole chain works without publishing anything.
 
    Credentials, a token exchange, the account they belong to, and every board
@@ -296,7 +373,15 @@ async function verify(args, manifest) {
     process.exit(1);
   }
 
-  console.error(`\nAll clear. ${manifest.length} pin(s) in the queue; nothing has been posted.`);
+  if (args.verifyWrite) {
+    console.error("\nTesting write access on a secret board …");
+    await verifyWrite(args, manifest);
+    console.error("\n✓ write access confirmed — the token can create pins.");
+  }
+
+  console.error(`\nAll clear. ${manifest.length} pin(s) in the queue; nothing has been ` +
+    (args.verifyWrite ? "published." : "posted, and write access is untested — " +
+      "--verify-write proves it without publishing anything."));
   process.exit(0);
 }
 
