@@ -365,14 +365,17 @@ appears in this repo at all.
    takes a minute, and it's the same account either way — Settings → Account
    management → Convert to business. The API only works on a business account.
 
-2. **Create three boards.** The names have to match `sites.js` exactly:
+2. **Create two boards.** The names have to match `sites.js` exactly:
 
    - `Funeral order of service`
    - `Wedding order of service`
-   - `Freelance business admin`
 
    Or skip this and let the tool make them for you the first time, with
    `--create-boards`.
+
+   The account is Order of Service Maker's, and only its. Quillbill is not on
+   Pinterest and has no board here — a family arriving from a funeral pin
+   should not find a profile that also sells invoicing software.
 
 3. **Make an app.** Go to [developers.pinterest.com](https://developers.pinterest.com),
    sign in with that account, and create an app. When it asks which permissions
@@ -436,6 +439,24 @@ appears in this repo at all.
 That is the whole setup. From then on, a pin goes out on Monday, Wednesday and
 Friday morning, in the order `sites.js` lists them, and the workflow records
 what it sent so nothing goes twice.
+
+### Trial access, which is where every new app starts
+
+Pinterest gives every new app **trial access**, and a trial app cannot create
+pins on the live API at all:
+
+```
+POST /pins → 403: Apps with Trial access may not create Pins in production
+```
+
+No token, scope or board fixes this. Only Pinterest granting **standard
+access** does — apply at developers.pinterest.com, on the app's own page.
+
+The scheduled workflow treats this as a state rather than a fault and exits
+green with an explanation. A red run three times a week for however long the
+application takes teaches everyone to ignore this workflow, and then the one
+time it fails for a real reason nobody looks. When access is granted the same
+schedule starts posting on its own, with nothing to switch back on.
 
 ### When Pinterest says "The authorization grant is invalid"
 

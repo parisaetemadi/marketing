@@ -92,6 +92,18 @@ module.exports = {
         page: "/guides/stripe-invoicing-fees-explained", verified: "2026-08-15" },
     ],
 
+    /* No Pinterest block anywhere in this product, deliberately.
+
+       The Pinterest account belongs to Order of Service Maker. Putting a
+       "Freelance business admin" board on it would mean a family arriving from
+       a funeral pin finds a profile that also sells invoicing software, which
+       is a trust problem for the audience least able to shrug it off. One
+       account, one thing it is about.
+
+       If Quillbill ever wants Pinterest it needs its own business account and
+       its own credentials — which is a change to how post-pins.js is
+       configured, not another board on this one. */
+
     segments: [
       {
         id: "freelancers",
@@ -107,61 +119,6 @@ module.exports = {
         tone: "direct, numeric, faintly anti-subscription; peer to peer",
         solicit: true,
         channels: ["search", "community", "directories", "comparison-pages"],
-        /* Pinterest for an invoicing tool is the speculative one of the three
-           boards in this file, and it is listed last in the queue for that
-           reason. The wedding case is obvious and the funeral case is a
-           search behaviour; "freelance invoice template" is a real Pinterest
-           query, but a smaller and less commercial one. It costs nothing to
-           find out once the generator exists, which is the only reason it is
-           here. Drop it if six months of pins move nothing. */
-        pinterest: {
-          board: "Freelance business admin",
-          pins: [
-            {
-              page: "/guides/cheapest-way-to-invoice-clients",
-              kicker: "Freelance admin",
-              headline: "Invoicing tools, over three years",
-              support: "Card processing is the same on both sides — it is charged by " +
-                "the processor, not by the invoicing tool. The software line is the " +
-                "only one that differs.",
-              rows: [
-                { label: "Typical subscription tool", value: "$828–$1,548" },
-                { label: "Quillbill Pro", value: "$29, once" },
-                { label: "The difference", value: "$799–$1,519" },
-              ],
-              title: "What invoicing software costs over three years",
-            },
-            {
-              page: "/guides/invoice-software-pricing-comparison",
-              kicker: "What it actually costs",
-              headline: "What invoice software costs in 2026",
-              rows: [
-                { label: "FreshBooks Lite", value: "$23/mo" },
-                { label: "QuickBooks Simple Start", value: "$35–38/mo" },
-                { label: "HoneyBook Starter", value: "$29–36/mo" },
-                { label: "Wave Pro", value: "$19/mo" },
-                { label: "Quillbill Pro", value: "$29 once" },
-              ],
-              support: "Cheapest plan that includes unlimited invoicing, as published " +
-                "in August 2026.",
-              title: "What invoice software actually costs in 2026",
-            },
-            {
-              page: "/guides/stripe-invoicing-fees-explained",
-              kicker: "Payment fees",
-              headline: "What a Stripe invoice really costs",
-              rows: [
-                { label: "Standard card processing", value: "2.9% + 30¢" },
-                { label: "Stripe Invoicing, Plus", value: "+0.5%" },
-                { label: "Combined, per paid invoice", value: "≈3.4% + 30¢" },
-              ],
-              support: "On $5,000 a month across 15 invoices, that is about $174.50 — " +
-                "before any invoicing subscription on top.",
-              title: "Stripe invoicing fees, explained",
-            },
-          ],
-        },
-
         hn: [
           "invoice generator", "invoicing software", "freelance invoicing",
           "invoice subscription", "local-first app",
