@@ -27,7 +27,7 @@ on:
       mode:
         description: "What this manual run should do"
         type: choice
-        options: [verify, post]
+        options: [verify, verify-write, post]
         default: verify
 
 permissions:
@@ -67,9 +67,13 @@ jobs:
           fi
           # A manual run defaults to verifying, because the reason to press the
           # button by hand is almost always "did I wire the secrets up right".
-          # The schedule sends no input at all, so it posts.
+          # verify-write goes further and proves the token can create a pin,
+          # on a secret board it deletes afterwards. The schedule sends no
+          # input at all, so it posts.
           if [ "$MODE" = "verify" ]; then
             node bin/post-pins.js --verify
+          elif [ "$MODE" = "verify-write" ]; then
+            node bin/post-pins.js --verify-write
           else
             node bin/post-pins.js --post --ignore-dates --max 1 --ledger state/posted.json
           fi

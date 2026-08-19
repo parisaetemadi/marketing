@@ -271,6 +271,16 @@ token, names the account it belongs to, and checks every board the queue needs
 actually exists — the plain dry run proves none of that, because it stops
 before authorising.
 
+`--verify-write` goes one further, because read access and write access look
+identical right up until you need the second one: listing boards succeeds with
+a read-only token, so a green `--verify` says nothing about whether Monday's
+post will work. It creates a **secret** board, puts a real pin on it, then
+deletes both. Secret boards are visible to nobody but the account holder, so
+nothing is published even for the second the pin exists — and it exercises the
+same endpoint, the same image upload and the same fields the poster uses,
+rather than a proxy for them. Cleanup runs even if the middle fails, and names
+anything it could not remove.
+
 Setup is [below](#pinterest-the-one-thing-that-needs-you).
 
 ### Workflows
