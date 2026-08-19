@@ -220,6 +220,27 @@ node bin/make-pins.js --check                           # validate, render nothi
 Writes `out/pins/` — the images, `queue.md` to post from by hand, and
 `pins.json` for the poster.
 
+### `bin/pinterest-auth.js`
+
+Runs the OAuth authorisation-code flow once, on your machine, to get a refresh
+token — the thing Pinterest's developer console will not give you.
+
+It registers no state anywhere, writes nothing to disk, and holds the
+authorisation code for the few seconds between Pinterest's redirect and the
+token exchange. The listener binds to `127.0.0.1` only, and the `state`
+parameter is checked, so a redirect that did not come from this run is refused.
+
+It also prints the scopes Pinterest actually granted and says so if
+`pins:write` is not among them — an approval only grants what the app asked for
+at the time, so a scope added afterwards needs a fresh approval, and a token
+that cannot post looks exactly like a token that can until it fails.
+
+```bash
+export PINTEREST_APP_ID=… PINTEREST_APP_SECRET=…
+node bin/pinterest-auth.js
+node bin/pinterest-auth.js --code <code> --redirect https://your.url/here
+```
+
 ### `bin/post-pins.js`
 
 Posts what `make-pins.js` built, through Pinterest's own API. Separate program
@@ -339,11 +360,27 @@ appears in this repo at all.
    sign in with that account, and create an app. When it asks which permissions
    it needs, tick `boards:read`, `boards:write`, `pins:read` and `pins:write`.
 
-4. **Get a token.** The app page will let you generate one. You want the
-   **refresh token**, not just the access token — access tokens stop working
-   after about a month, which for something running by itself is a failure you
-   would not notice until you wondered why nothing had been posted since
-   September.
+4. **Get a refresh token.** Ignore the console's "Generate token" button. It
+   produces a short-lived test access token with a fixed, largely read-only set
+   of scopes, and there is no button anywhere on that site that gives you a
+   refresh token. The only source is the OAuth flow, so this repo runs it for
+   you:
+
+   ```bash
+   export PINTEREST_APP_ID=…            # in the terminal, not in a file
+   export PINTEREST_APP_SECRET=…
+   node bin/pinterest-auth.js
+   ```
+
+   It prints a link, waits, and catches Pinterest's answer. Approve the app in
+   the browser and it prints the refresh token and stops — nothing is written
+   to disk. First register `http://localhost:8385/callback` as a redirect URI
+   on the app; if Pinterest refuses a localhost URI, see
+   [`bin/pinterest-auth.js`](bin/pinterest-auth.js) for the manual route.
+
+   An access token stops working after about a month, which for something
+   running by itself is a failure you would not notice until you wondered why
+   nothing had been posted since September. That is why this step exists.
 
 5. **Put the secrets in GitHub.** In this repo: Settings → Secrets and variables
    → Actions → New **repository** secret. Add three:
@@ -374,19 +411,13 @@ what it sent so nothing goes twice.
 ### When Pinterest says "The authorization grant is invalid"
 
 That is Pinterest's answer to every bad refresh token, whatever is actually
-wrong with it. `--verify` prints the causes in order of likelihood; the first
-one accounts for most of them.
+wrong with it. `--verify` prints the causes in order of likelihood.
 
-Pinterest shows an access token and a refresh token on the same screen and
-they look alike. The refresh token begins `pinr_`, the access token `pina_`,
-and the two are not interchangeable — `PINTEREST_REFRESH_TOKEN` holding a
-`pina_` value is rejected with that message. The tool now names that case
-outright rather than leaving you to compare strings.
-
-If you want to be posting today and sort the refresh token out later, put the
-access token in `PINTEREST_ACCESS_TOKEN`. It takes priority over the refresh
-credentials and works for about thirty days — long enough that the queue
-starts moving, short enough that it is not a solution.
+By far the most common one: the value is not a refresh token at all. Tokens
+from the console's "Generate token" button begin `pina_` and are access
+tokens; refresh tokens begin `pinr_` and come only from
+`bin/pinterest-auth.js`. The two are not interchangeable, and the tool now
+names that case outright rather than leaving you to compare strings.
 
 ### If you would rather check it first
 
