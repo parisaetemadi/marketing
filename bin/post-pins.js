@@ -489,6 +489,25 @@ async function verify(args, manifest) {
       posted++;
       console.error(`  ✓ ${row.title} → pin ${pin.id}`);
     } catch (err) {
+      /* Trial access is a state, not a fault. Pinterest gives every new app
+         trial access, and a trial app cannot create pins on the live API at
+         all — no token, scope or board changes that; only Pinterest granting
+         standard access does.
+
+         So this exits 0. The alternative is a red run every Monday, Wednesday
+         and Friday for however many weeks the application takes, which trains
+         everyone to ignore this workflow — and the one time it goes red for a
+         real reason, nobody looks. When access is granted the same schedule
+         starts working with nothing to switch back on. */
+      if (/Trial access/i.test(err.message)) {
+        console.error(`\n  Pinterest refused: ${err.message}`);
+        console.error("\n  This app has Trial access. Trial apps cannot create pins on the live");
+        console.error("  API — the queue, the images and the credentials are all fine, and this");
+        console.error("  will start posting by itself once Pinterest grants standard access.");
+        console.error("\n  Apply at developers.pinterest.com → your app → request standard access.");
+        console.error("  Nothing was posted, and the ledger is unchanged.");
+        process.exit(0);
+      }
       console.error(`  ✗ ${row.title}: ${err.message}`);
       if (err.status === 401 || err.status === 403) {
         console.error("    The token is rejected. If the app is still on trial access it can " +
