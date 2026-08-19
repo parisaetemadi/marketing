@@ -376,7 +376,16 @@ appears in this repo at all.
 
 3. **Make an app.** Go to [developers.pinterest.com](https://developers.pinterest.com),
    sign in with that account, and create an app. When it asks which permissions
-   it needs, tick `boards:read`, `boards:write`, `pins:read` and `pins:write`.
+   it needs, tick all six of these:
+
+   `boards:read` · `boards:write` · `boards:write_secret` ·
+   `pins:read` · `pins:write` · `pins:write_secret`
+
+   The `_secret` pair matters more than it looks. Pinterest treats writing to a
+   secret board as a different permission from writing to a public one, and
+   `--verify-write` runs its whole test on a secret board so that nothing is
+   ever published. Without those two, the safe test is the one thing the token
+   cannot do.
 
 4. **Get a refresh token.** Ignore the console's "Generate token" button. It
    produces a short-lived test access token with a fixed, largely read-only set

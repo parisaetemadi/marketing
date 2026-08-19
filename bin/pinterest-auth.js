@@ -49,10 +49,29 @@ const LIVE = "https://api.pinterest.com/v5";
 const SANDBOX = "https://api-sandbox.pinterest.com/v5";
 const AUTHORIZE = "https://www.pinterest.com/oauth/";
 
-/* Everything post-pins.js needs and nothing else. boards:write is here so the
-   poster can create a missing board with --create-boards; drop it from this
-   list if you would rather create every board by hand. */
-const SCOPES = ["boards:read", "boards:write", "pins:read", "pins:write"];
+/* Everything post-pins.js needs, and nothing beyond it.
+
+   Pinterest splits every write in two: `boards:write` covers public boards and
+   `boards:write_secret` covers secret ones, and the same for pins. That is not
+   a detail to skip, because --verify-write does its whole test on a secret
+   board — creating one, pinning to it, deleting both — precisely so that
+   nothing is ever published. Without the _secret pair, the safe test is the
+   one thing the token cannot do, and re-running this flow is not something
+   anyone wants to do twice.
+
+     boards:read           list boards, to turn a board name into an id
+     boards:write          create a missing board with --create-boards
+     boards:write_secret   the throwaway board --verify-write uses
+     pins:read             read back a pin after creating it
+     pins:write            the actual job
+     pins:write_secret     the throwaway pin --verify-write uses
+
+   Deliberately absent: ads, billing, catalogs, user_accounts. Nothing here
+   touches any of them. */
+const SCOPES = [
+  "boards:read", "boards:write", "boards:write_secret",
+  "pins:read", "pins:write", "pins:write_secret",
+];
 
 const DEFAULT_PORT = 8385;
 const DEFAULT_REDIRECT = `http://localhost:${DEFAULT_PORT}/callback`;
