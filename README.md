@@ -10,6 +10,8 @@ node bin/audit-seo.js quillbill --dir ../Quillbill   # before you push
 node bin/audit-seo.js --all --live                   # against production
 node bin/build-sitemap.js quillbill --dir ../Quillbill
 node bin/find-mentions.js --days 7                   # this week's shortlist
+node bin/make-pins.js --live                         # a month of Pinterest pins
+node bin/post-pins.js                                # what would go out next
 ```
 
 ---
@@ -84,6 +86,11 @@ Automate the parts that are mechanical and get skipped when you're busy:
 - **Keeping the sitemap true.** A missing entry costs you a page's traffic and
   produces no error anywhere.
 
+- **Publishing to a search index.** A pin is not a message to anyone. It sits
+  in an index and is found by somebody typing a question. Writing the pins is
+  human work; uploading one every other day for a month is not, and it is
+  exactly the kind of thing that stops happening in a busy week.
+
 Do not automate the parts where the value *is* the human:
 
 - **Posting replies.** An auto-posted comment is how a small brand gets banned
@@ -93,6 +100,10 @@ Do not automate the parts where the value *is* the human:
   mail merge.
 - **Writing the guides.** The existing Quillbill guides rank because they carry
   real numbers. Generated filler competes with them and loses.
+
+The line between the two is who initiated it. A reply, a DM and a cold email
+all arrive at someone who did not ask; a pin and a guide wait to be found. That
+is why `bin/find-mentions.js` will never post and `bin/post-pins.js` will.
 
 ---
 
@@ -167,16 +178,80 @@ digest rather than killing the run.
 In practice this makes the digest HN-only, which covers the local-first segment
 well and the freelancer segment thinly.
 
+### `bin/make-pins.js`
+
+Turns the guides into Pinterest pins: 1000×1500 images, plus the title,
+description, alt text and link to post with each one.
+
+Pinterest is the one social platform in this repo, because it is barely a
+social platform — it is a search engine with pictures. A pin is found by
+someone typing *"how many orders of service to print"*, it keeps being found
+for years, and nothing is pushed at anybody. That makes it usable for the
+wedding segment, for the freelancer segment, and — carefully — for the
+bereaved segment, whose `solicit: false` rule is about not approaching people,
+not about being unfindable.
+
+The images are rendered by the copy of Chrome already on the machine, in each
+site's own colours and type, taken straight from the sites' CSS custom
+properties. No design tool, no subscription, no fonts to download. Three
+layouts — a statement, a small table of numbers, a checklist — so one guide
+becomes several distinct pins instead of the same picture posted twice.
+
+Rules it enforces rather than documents, verifiable with `--self-test`:
+
+- a pin whose destination page does not exist fails the run;
+- a pin quoting a figure the destination page does not quote fails the run;
+- for `solicit: false` segments, exclamation marks, urgency vocabulary and a
+  price in the headline all fail the run;
+- emoji fail everywhere, in both brands.
+
+The queue is ordered so that boards take turns and two images of the same
+guide land about a month apart, which is the difference between a URL that
+looks worth ranking and one that looks like spam.
+
+```bash
+node bin/make-pins.js --self-test                       # prove the rules fire
+node bin/make-pins.js --dir quillbill=../Quillbill \
+                      --dir orderofservicemaker=../booklet
+node bin/make-pins.js --live                            # read pages from production
+node bin/make-pins.js --check                           # validate, render nothing
+```
+
+Writes `out/pins/` — the images, `queue.md` to post from by hand, and
+`pins.json` for the poster.
+
+### `bin/post-pins.js`
+
+Posts what `make-pins.js` built, through Pinterest's own API. Separate program
+on purpose: making pins is safe and repeatable, publishing them is neither.
+
+It does nothing without `--post`. With it, it posts only pins that are due,
+minus anything in the ledger, capped at `--max` per run — so a run that fires
+twice posts nothing the second time, and a missed run catches up at the cap
+rather than dumping a fortnight of pins in one afternoon.
+
+```bash
+node bin/post-pins.js                        # dry run: what is due
+node bin/post-pins.js --sandbox --post       # rehearse against Pinterest's sandbox
+node bin/post-pins.js --post --max 1
+```
+
+Setup is [below](#pinterest-the-one-thing-that-needs-you).
+
 ### Workflows
 
 | Workflow | When | What it does |
 | --- | --- | --- |
 | `outreach-digest.yml` | Mondays 08:00 UTC | Files the week's shortlist as an issue |
 | `site-audit.yml` | Mondays 07:00 UTC | Audits both live sites, opens an issue only on failures |
+| `price-check.yml` | 1st of the month | Re-checks every price the guides quote |
+| `pins.yml` | 1st of the month | Renders a month of pins, uploads them as an artifact |
+| `pins-post.yml` | Mon/Wed/Fri 10:00 UTC | Posts the next pin, if a Pinterest token exists |
 | `audit-site.yml` | Called by a product repo | Gates that repo's PRs on the audit |
 
-All three use `gh` and `GITHUB_TOKEN`, already present on the runner. No
-secrets, no third-party actions, no spend.
+All of them run on `GITHUB_TOKEN`, already present on the runner. No third-party
+actions, no spend. `pins-post.yml` is the only one that needs a secret, and
+without it the run skips rather than fails.
 
 ---
 
@@ -225,29 +300,107 @@ disagree until the next deploy.
 
 ---
 
+## Pinterest: the one thing that needs you
+
+Everything else in this repo runs on its own. This does too — once, at the
+start, somebody has to hand it an account. About half an hour, and then it does
+not need you again.
+
+**Why bother at all.** Pinterest is where people search for *"funeral order of
+service template"* and *"wedding programme wording"* and then keep the result.
+A pin posted today is still being found in two years; a post on most platforms
+is finished in two days. It is also free, it has a real API, and — unlike
+Instagram or TikTok — nothing about it rewards being personally present every
+day. That combination is rare, and it is the only reason a social platform
+appears in this repo at all.
+
+### What to do, in order
+
+1. **Make a Pinterest account, then switch it to a business account.** Free,
+   takes a minute, and it's the same account either way — Settings → Account
+   management → Convert to business. The API only works on a business account.
+
+2. **Create three boards.** The names have to match `sites.js` exactly:
+
+   - `Funeral order of service`
+   - `Wedding order of service`
+   - `Freelance business admin`
+
+   Or skip this and let the tool make them for you the first time, with
+   `--create-boards`.
+
+3. **Make an app.** Go to [developers.pinterest.com](https://developers.pinterest.com),
+   sign in with that account, and create an app. When it asks which permissions
+   it needs, tick `boards:read`, `boards:write`, `pins:read` and `pins:write`.
+
+4. **Get a token.** The app page will let you generate one. You want the
+   **refresh token**, not just the access token — access tokens stop working
+   after about a month, which for something running by itself is a failure you
+   would not notice until you wondered why nothing had been posted since
+   September.
+
+5. **Put the secrets in GitHub.** In this repo: Settings → Secrets and variables
+   → Actions → New **repository** secret. Add three:
+
+   | Name | What it is |
+   | --- | --- |
+   | `PINTEREST_APP_ID` | from the app page |
+   | `PINTEREST_APP_SECRET` | from the app page |
+   | `PINTEREST_REFRESH_TOKEN` | the refresh token from step 4 |
+
+   **Do not paste any of these into a chat, a file, or a commit.** They go in
+   that form and nowhere else. This repo is public.
+
+That is the whole setup. From then on, a pin goes out on Monday, Wednesday and
+Friday morning, in the order `sites.js` lists them, and the workflow records
+what it sent so nothing goes twice.
+
+### If you would rather check it first
+
+With the token exported in your own shell:
+
+```bash
+export PINTEREST_ACCESS_TOKEN=...          # in the terminal, not in a file
+node bin/post-pins.js --sandbox --post      # posts to Pinterest's sandbox
+```
+
+The sandbox accepts real API calls and throws the pins away, so you can watch
+the whole thing work without anything appearing in public.
+
+### If you would rather not connect an account at all
+
+Run the **Build pins** workflow from the Actions tab and download the artifact.
+It contains every image and a `queue.md` listing which board each one goes on,
+what to title it, what to write underneath and where it links. Posting one by
+hand takes about a minute.
+
+### When the queue runs out
+
+It is about a month long. Adding more means adding entries to the `pinterest`
+block of a segment in `sites.js` — a headline, a supporting sentence, and
+either a short table of numbers or a list of steps, all of it taken from a page
+that already exists. The checks will refuse anything that quotes a figure the
+page does not.
+
+---
+
 ## The parts no script can do
 
 Roughly in order of expected return:
 
-1. **Replace Quire's `og-cover.svg` with a PNG.** No social platform renders
-   SVG previews — not Facebook, X, LinkedIn, WhatsApp or iMessage. The tag
-   validates, the file exists, and every shared link still shows as a bare grey
-   box. For a product whose links get sent between family members and between
-   engaged couples, this is the cheapest fix on the list. Quillbill already
-   ships a PNG; copy that setup. Then add `og:image` and `twitter:card` to the
-   five guides, which currently have neither.
-2. **Rebalance Quire's guides away from cost.** Three of the five are about
-   price. That is Quillbill's playbook, and it works there because freelancers
-   genuinely shop on price. A family arranging a funeral next Tuesday is not
-   comparison shopping — they are searching *"what do you put in an order of
-   service"*, *"how many should I print"*, *"readings for a funeral"*. There is
-   one wording guide against three cost guides; the ratio should be the other
-   way around. Practical guides are also the ones a funeral director will link
-   to, which is the partnership channel's way in.
-3. **Ten partnership conversations for the funeral segment.** Independent
+1. **Connect the Pinterest account.** [Half an hour, once](#pinterest-the-one-thing-that-needs-you),
+   and then a month of pins posts itself. It is the only item on this list that
+   stops being work after you do it.
+2. **Ten partnership conversations for the funeral segment.** Independent
    funeral directors, humanist celebrants, hospice bereavement coordinators.
    Offer something worth having — a printing guide, a co-branded template — not
-   an affiliate link.
+   an affiliate link. One director refers dozens of families a year and never
+   churns; ten of those relationships is a better business than any ad account.
+3. **Request indexing for the new guides.** Order of Service Maker is a
+   week-old domain with no inbound links, so Google has crawled the homepage
+   and little else. Search Console → URL inspection → Request indexing, for
+   `/guides/` and each guide. It is a nudge, not a fix; the fix is the
+   backlinks that partnerships and pins produce.
 4. **Split Quire's entry paths by ceremony.** Funeral and wedding currently
    share one landing page and one voice. They need separate pages, separate
    tone, and separate search targeting; right now they compete with each other
@@ -256,15 +409,9 @@ Roughly in order of expected return:
    `/invoice-template/<trade>`, `/invoice/<country>` for VAT and Rechnung
    formats. Comparison intent converts because the visitor has already decided
    to switch. Each page needs real numbers, not a template fill.
-6. **Give Quire the analytics Quillbill has.** It currently has no beacon at
-   all, so there is no way to tell which guide earns the $30. Cloudflare Web
-   Analytics on the marketing pages only — never on `app.html` — is what
-   Quillbill does and stays consistent with the privacy pitch. Add
-   `analytics.requiredOn` / `forbiddenOn` to `sites.js` afterwards so the audit
-   holds the line.
-7. **Cross-link the two products' footers.** Free, permanent, and the audiences
+6. **Cross-link the two products' footers.** Free, permanent, and the audiences
    overlap more than you'd think — celebrants and stationers invoice too.
-8. **A launch pass on the directories.** AlternativeTo, SaaSHub, Show HN,
+7. **A launch pass on the directories.** AlternativeTo, SaaSHub, Show HN,
    Indie Hackers. Once each, written by hand, no bulk submission.
 
 ---

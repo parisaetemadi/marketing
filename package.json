@@ -9,6 +9,10 @@
     "audit:live": "node bin/audit-seo.js --all --live",
     "sitemap": "node bin/build-sitemap.js quillbill --dir ../Quillbill",
     "sitemap:check": "node bin/build-sitemap.js quillbill --dir ../Quillbill --check",
-    "mentions": "node bin/find-mentions.js --days 7"
+    "mentions": "node bin/find-mentions.js --days 7",
+    "pins": "node bin/make-pins.js",
+    "pins:check": "node bin/make-pins.js --check",
+    "pins:test": "node bin/make-pins.js --self-test",
+    "pins:post": "node bin/post-pins.js"
   }
 }
