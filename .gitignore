@@ -5,3 +5,9 @@ node_modules/
 digest.md
 audit.md
 *.local.md
+
+# Generated pin images and the posting queue. Regenerated from sites.js in
+# about twenty seconds, so there is nothing here worth committing — except
+# state/posted.json, which is the record of what has already gone out and is
+# deliberately NOT in here.
+out/

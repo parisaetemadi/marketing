@@ -22,12 +22,32 @@ That is deliberate and enforced in `bin/find-mentions.js`, not just documented:
 - The channels for that segment are search and partnerships. If a task seems to
   need something else, the task is wrong.
 
-## No auto-posting, ever
+## Never post *to a person* automatically
 
 `bin/find-mentions.js` finds threads. A human writes every reply, in the
 thread's own context, disclosing they built the product. Do not add a posting
 step, a reply generator, or a "suggested comment" field — the shortlist is an
-inbox, not a queue.
+inbox, not a queue. The same goes for DMs and for email to funeral directors.
+
+`bin/post-pins.js` does publish automatically, and the distinction is who
+started the conversation. A reply, a DM and a cold email all arrive at somebody
+who did not ask for them. A pin goes into a search index and waits to be found,
+which is the same act as publishing a guide. If a proposed automation cannot be
+described that way, it belongs on the manual side of this line.
+
+What keeps the pin path honest is in `bin/make-pins.js`, and it is enforced,
+not documented:
+
+- a pin whose destination page does not exist fails the run;
+- a pin quoting a figure that page does not quote fails the run;
+- for a `solicit: false` segment, exclamation marks, urgency vocabulary and a
+  price in the headline fail the run;
+- `--self-test` proves all of the above still fire, including that a
+  well-behaved funeral pin passes. Keep it passing. A rule that flags
+  everything gets switched off within a month.
+
+Do not add a pin whose text was generated rather than written, and do not point
+pins at pages that do not exist yet.
 
 ## Paid ads don't work here, so don't plan around them
 
@@ -63,3 +83,9 @@ understanding which promise it was guarding.
   in the output rather than killing the run.
 - Prefer one request with a scoped query over N requests in a loop.
 - `sites.js` is the only file that should need editing for routine changes.
+- Images are rendered by whatever Chrome is already installed, via
+  `lib/render.js`. Do not reach for Puppeteer or Playwright — the renderer
+  measures the browser's window-furniture offset itself and crops back, so the
+  output is pixel-exact on a laptop, a CI runner and this container alike.
+  If a screenshot comes out the wrong size, that calibration is the place to
+  look, not the CSS.
