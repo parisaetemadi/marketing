@@ -194,6 +194,30 @@ async function api(args, method, endpoint, body) {
   return res.json;
 }
 
+/* Who the token belongs to — a courtesy line, not a requirement.
+
+   Naming the account is worth printing: it is the one cheap way to notice you
+   have wired up the wrong Pinterest login before pins start appearing on it.
+   But reading it needs user_accounts:read, which this repo deliberately does
+   not ask for — nothing here manages an account, and a scope granted to print
+   a nicety is a scope granted for no reason.
+
+   So the call is best-effort. A token without that scope is not a broken
+   token, and treating it as one cost an OAuth round trip once already. */
+async function whoami(args) {
+  try {
+    const me = await api(args, "GET", "/user_account");
+    return `${me.username || "(no username returned)"}` +
+      (me.account_type ? ` — ${me.account_type}` : "");
+  } catch (err) {
+    if (err.status === 401 || err.status === 403) {
+      return "(not readable — the token has no user_accounts:read scope, which is " +
+        "deliberate and does not affect posting)";
+    }
+    throw err;
+  }
+}
+
 /* Every board on the account, by lowercased name. One listing per run, so a
    name mismatch is one clear error before anything is posted rather than a
    failure three pins in. */
@@ -352,9 +376,7 @@ async function verify(args, manifest) {
   }
   console.error(`✓ credentials accepted (via ${via})`);
 
-  const me = await api(args, "GET", "/user_account");
-  console.error(`✓ account: ${me.username || "(no username returned)"}` +
-    (me.account_type ? ` — ${me.account_type}` : ""));
+  console.error(`✓ account: ${await whoami(args)}`);
 
   const wanted = [...new Set(manifest.map((row) => row.board))];
   const all = await listBoards(args);
@@ -452,8 +474,7 @@ async function verify(args, manifest) {
     process.exit(2);
   }
 
-  const me = await api(args, "GET", "/user_account");
-  console.error(`\nposting as ${me.username || "(unknown account)"} (via ${via})`);
+  console.error(`\nposting as ${await whoami(args)} (via ${via})`);
 
   const boards = await resolveBoards(args, [...new Set(batch.map((r) => r.board))]);
 

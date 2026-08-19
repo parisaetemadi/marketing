@@ -67,7 +67,9 @@ const AUTHORIZE = "https://www.pinterest.com/oauth/";
      pins:write_secret     the throwaway pin --verify-write uses
 
    Deliberately absent: ads, billing, catalogs, user_accounts. Nothing here
-   touches any of them. */
+   touches any of them — post-pins.js does look up the account name to print
+   it, but treats a refusal as a missing nicety rather than an error, which is
+   the right trade for a scope whose only use is one line of output. */
 const SCOPES = [
   "boards:read", "boards:write", "boards:write_secret",
   "pins:read", "pins:write", "pins:write_secret",
