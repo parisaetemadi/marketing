@@ -46,6 +46,7 @@
  *
  * Usage:
  *   node bin/post-pins.js                      # dry run: what is due
+ *   node bin/post-pins.js --verify             # check the credentials, post nothing
  *   node bin/post-pins.js --sandbox --post     # prove it end to end
  *   node bin/post-pins.js --post               # publish what is due
  *   node bin/post-pins.js --post --max 1 --ignore-dates
@@ -62,6 +63,7 @@ function parseArgs(argv) {
   const args = {
     manifest: "out/pins/pins.json", ledger: null, post: false,
     max: 3, sandbox: false, createBoards: false, today: null, ignoreDates: false,
+    verify: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -69,6 +71,7 @@ function parseArgs(argv) {
     else if (a === "--sandbox") args.sandbox = true;
     else if (a === "--create-boards") args.createBoards = true;
     else if (a === "--ignore-dates") args.ignoreDates = true;
+    else if (a === "--verify") args.verify = true;
     else if (a === "--manifest") args.manifest = argv[++i];
     else if (a === "--ledger") args.ledger = argv[++i];
     else if (a === "--max") args.max = Math.max(1, Number(argv[++i]) || 3);
@@ -155,24 +158,32 @@ async function api(args, method, endpoint, body) {
   return res.json;
 }
 
-/* Board names in the config are human names; the API wants ids. Resolved once
-   per run so a typo is one clear error before anything is posted, rather than
-   a failure three pins in. */
-async function resolveBoards(args, names) {
-  const wanted = new Set(names);
-  const found = new Map();
-
+/* Every board on the account, by lowercased name. One listing per run, so a
+   name mismatch is one clear error before anything is posted rather than a
+   failure three pins in. */
+async function listBoards(args) {
+  const all = new Map();
   let bookmark = null;
   do {
     const q = bookmark ? `?page_size=100&bookmark=${encodeURIComponent(bookmark)}` : "?page_size=100";
     const page = await api(args, "GET", "/boards" + q);
     for (const board of page.items || []) {
-      for (const name of wanted) {
-        if (board.name && board.name.toLowerCase() === name.toLowerCase()) found.set(name, board.id);
-      }
+      if (board.name) all.set(board.name.toLowerCase(), board.id);
     }
     bookmark = page.bookmark || null;
   } while (bookmark);
+  return all;
+}
+
+/* Board names in the config are human names; the API wants ids. */
+async function resolveBoards(args, names) {
+  const wanted = new Set(names);
+  const all = await listBoards(args);
+  const found = new Map();
+  for (const name of wanted) {
+    const id = all.get(name.toLowerCase());
+    if (id) found.set(name, id);
+  }
 
   const missing = [...wanted].filter((n) => !found.has(n));
   if (missing.length && !args.createBoards) {
@@ -208,6 +219,53 @@ async function postPin(args, row, boardId) {
   });
 }
 
+/* Prove the whole chain works without publishing anything.
+
+   Credentials, a token exchange, the account they belong to, and every board
+   the queue needs — checked in that order, because that is the order they
+   fail in. A dry run proves none of this: it stops before authorising, which
+   is exactly the part that is wrong when someone has just finished setting up.
+
+   Nothing here creates or posts. It is safe to run at any time, and worth
+   running whenever a credential is rotated. */
+async function verify(args, manifest) {
+  let via;
+  try {
+    via = await authorise(args);
+  } catch (err) {
+    console.error(err.message);
+    process.exit(2);
+  }
+  console.error(`✓ credentials accepted (via ${via})`);
+
+  const me = await api(args, "GET", "/user_account");
+  console.error(`✓ account: ${me.username || "(no username returned)"}` +
+    (me.account_type ? ` — ${me.account_type}` : ""));
+
+  const wanted = [...new Set(manifest.map((row) => row.board))];
+  const all = await listBoards(args);
+  let missing = 0;
+  for (const name of wanted) {
+    const id = all.get(name.toLowerCase());
+    if (id) console.error(`✓ board "${name}" (${id})`);
+    else { console.error(`✗ board "${name}" — not on this account`); missing++; }
+  }
+
+  if (missing) {
+    console.error(`\n${missing} board(s) missing. Create them in Pinterest with exactly those\n` +
+      "names, or rename the board in sites.js to match one you have. Names are\n" +
+      "matched without regard to case, but not to spelling.");
+    if (all.size) {
+      console.error("\nBoards this account does have:");
+      for (const name of all.keys()) console.error(`  ${name}`);
+    }
+    process.exit(1);
+  }
+
+  console.error(`\nAll clear. ${manifest.length} pin(s) in the queue; nothing has been posted.`);
+  process.exit(0);
+}
+
 (async () => {
   const args = parseArgs(process.argv.slice(2));
   const today = args.today || new Date().toISOString().slice(0, 10);
@@ -217,6 +275,11 @@ async function postPin(args, row, boardId) {
     console.error(`no manifest at ${args.manifest} — run bin/make-pins.js first.`);
     process.exit(2);
   }
+  /* Before anything about scheduling: whether the credentials work at all is
+     independent of whether a pin is due, and "nothing due" is a useless answer
+     to someone who has just finished adding secrets. */
+  if (args.verify) return verify(args, manifest);
+
   const ledger = readJson(args.ledger, {});
 
   /* Two ways to decide what is due, for the two ways this gets run.
@@ -296,4 +359,10 @@ async function postPin(args, row, boardId) {
   }
 
   console.error(`\n${posted} posted. Ledger: ${args.ledger}`);
-})();
+})().catch((err) => {
+  /* Anything that reaches here is an API or network failure. The message
+     already says what failed and why; a stack trace through three async
+     frames adds nothing for someone who has just wired up credentials. */
+  console.error(err.message);
+  process.exit(1);
+});
