@@ -10,8 +10,6 @@ node bin/audit-seo.js quillbill --dir ../Quillbill   # before you push
 node bin/audit-seo.js --all --live                   # against production
 node bin/build-sitemap.js quillbill --dir ../Quillbill
 node bin/find-mentions.js --days 7                   # this week's shortlist
-node bin/make-pins.js --live                         # a month of Pinterest pins
-node bin/post-pins.js                                # what would go out next
 ```
 
 ---
@@ -86,11 +84,6 @@ Automate the parts that are mechanical and get skipped when you're busy:
 - **Keeping the sitemap true.** A missing entry costs you a page's traffic and
   produces no error anywhere.
 
-- **Publishing to a search index.** A pin is not a message to anyone. It sits
-  in an index and is found by somebody typing a question. Writing the pins is
-  human work; uploading one every other day for a month is not, and it is
-  exactly the kind of thing that stops happening in a busy week.
-
 Do not automate the parts where the value *is* the human:
 
 - **Posting replies.** An auto-posted comment is how a small brand gets banned
@@ -100,10 +93,6 @@ Do not automate the parts where the value *is* the human:
   mail merge.
 - **Writing the guides.** The existing Quillbill guides rank because they carry
   real numbers. Generated filler competes with them and loses.
-
-The line between the two is who initiated it. A reply, a DM and a cold email
-all arrive at someone who did not ask; a pin and a guide wait to be found. That
-is why `bin/find-mentions.js` will never post and `bin/post-pins.js` will.
 
 ---
 
@@ -178,111 +167,6 @@ digest rather than killing the run.
 In practice this makes the digest HN-only, which covers the local-first segment
 well and the freelancer segment thinly.
 
-### `bin/make-pins.js`
-
-Turns the guides into Pinterest pins: 1000×1500 images, plus the title,
-description, alt text and link to post with each one.
-
-Pinterest is the one social platform in this repo, because it is barely a
-social platform — it is a search engine with pictures. A pin is found by
-someone typing *"how many orders of service to print"*, it keeps being found
-for years, and nothing is pushed at anybody. That makes it usable for the
-wedding segment, for the freelancer segment, and — carefully — for the
-bereaved segment, whose `solicit: false` rule is about not approaching people,
-not about being unfindable.
-
-The images are rendered by the copy of Chrome already on the machine, in each
-site's own colours and type, taken straight from the sites' CSS custom
-properties. No design tool, no subscription, no fonts to download. Three
-layouts — a statement, a small table of numbers, a checklist — so one guide
-becomes several distinct pins instead of the same picture posted twice.
-
-Rules it enforces rather than documents, verifiable with `--self-test`:
-
-- a pin whose destination page does not exist fails the run;
-- a pin quoting a figure the destination page does not quote fails the run;
-- for `solicit: false` segments, exclamation marks, urgency vocabulary and a
-  price in the headline all fail the run;
-- emoji fail everywhere, in both brands.
-
-The queue is ordered so that boards take turns and two images of the same
-guide land about a month apart, which is the difference between a URL that
-looks worth ranking and one that looks like spam.
-
-```bash
-node bin/make-pins.js --self-test                       # prove the rules fire
-node bin/make-pins.js --dir quillbill=../Quillbill \
-                      --dir orderofservicemaker=../booklet
-node bin/make-pins.js --live                            # read pages from production
-node bin/make-pins.js --check                           # validate, render nothing
-```
-
-Writes `out/pins/` — the images, `queue.md` to post from by hand, and
-`pins.json` for the poster.
-
-### `bin/pinterest-auth.js`
-
-Runs the OAuth authorisation-code flow once, on your machine, to get a refresh
-token — the thing Pinterest's developer console will not give you.
-
-It registers no state anywhere, writes nothing to disk, and holds the
-authorisation code for the few seconds between Pinterest's redirect and the
-token exchange. The listener binds to `127.0.0.1` only, and the `state`
-parameter is checked, so a redirect that did not come from this run is refused.
-
-It also prints the scopes Pinterest actually granted and says so if
-`pins:write` is not among them — an approval only grants what the app asked for
-at the time, so a scope added afterwards needs a fresh approval, and a token
-that cannot post looks exactly like a token that can until it fails.
-
-It asks for the app id and secret on the terminal rather than reading them
-from the environment, because getting a secret into an environment variable is
-— empirically — the hardest step of this whole setup. `export` leaves it in
-shell history; `read -rs` prints no prompt and swallows the newline of anything
-pasted after it, so it returns empty and looks like it worked. Both failures
-surface much later as an authentication error. It still honours
-`PINTEREST_APP_ID` and `PINTEREST_APP_SECRET` if they are already set, and on
-anything without a terminal it errors rather than hanging on a prompt.
-
-```bash
-node bin/pinterest-auth.js
-node bin/pinterest-auth.js --code <code> --redirect https://your.url/here
-```
-
-### `bin/post-pins.js`
-
-Posts what `make-pins.js` built, through Pinterest's own API. Separate program
-on purpose: making pins is safe and repeatable, publishing them is neither.
-
-It does nothing without `--post`. With it, it posts only pins that are due,
-minus anything in the ledger, capped at `--max` per run — so a run that fires
-twice posts nothing the second time, and a missed run catches up at the cap
-rather than dumping a fortnight of pins in one afternoon.
-
-```bash
-node bin/post-pins.js --verify               # credentials and boards, posting nothing
-node bin/post-pins.js                        # dry run: what is due
-node bin/post-pins.js --sandbox --post       # rehearse against Pinterest's sandbox
-node bin/post-pins.js --post --max 1
-```
-
-`--verify` is the one to run after setting the secrets up. It exchanges the
-token, names the account it belongs to, and checks every board the queue needs
-actually exists — the plain dry run proves none of that, because it stops
-before authorising.
-
-`--verify-write` goes one further, because read access and write access look
-identical right up until you need the second one: listing boards succeeds with
-a read-only token, so a green `--verify` says nothing about whether Monday's
-post will work. It creates a **secret** board, puts a real pin on it, then
-deletes both. Secret boards are visible to nobody but the account holder, so
-nothing is published even for the second the pin exists — and it exercises the
-same endpoint, the same image upload and the same fields the poster uses,
-rather than a proxy for them. Cleanup runs even if the middle fails, and names
-anything it could not remove.
-
-Setup is [below](#pinterest-the-one-thing-that-needs-you).
-
 ### Workflows
 
 | Workflow | When | What it does |
@@ -290,13 +174,10 @@ Setup is [below](#pinterest-the-one-thing-that-needs-you).
 | `outreach-digest.yml` | Mondays 08:00 UTC | Files the week's shortlist as an issue |
 | `site-audit.yml` | Mondays 07:00 UTC | Audits both live sites, opens an issue only on failures |
 | `price-check.yml` | 1st of the month | Re-checks every price the guides quote |
-| `pins.yml` | 1st of the month | Renders a month of pins, uploads them as an artifact |
-| `pins-post.yml` | Mon/Wed/Fri 10:00 UTC | Posts the next pin; a manual run verifies the setup instead |
 | `audit-site.yml` | Called by a product repo | Gates that repo's PRs on the audit |
 
 All of them run on `GITHUB_TOKEN`, already present on the runner. No third-party
-actions, no spend. `pins-post.yml` is the only one that needs a secret, and
-without it the run skips rather than fails.
+actions, no secrets, no spend.
 
 ---
 
@@ -345,187 +226,31 @@ disagree until the next deploy.
 
 ---
 
-## Pinterest: the one thing that needs you
-
-Everything else in this repo runs on its own. This does too — once, at the
-start, somebody has to hand it an account. About half an hour, and then it does
-not need you again.
-
-**Why bother at all.** Pinterest is where people search for *"funeral order of
-service template"* and *"wedding programme wording"* and then keep the result.
-A pin posted today is still being found in two years; a post on most platforms
-is finished in two days. It is also free, it has a real API, and — unlike
-Instagram or TikTok — nothing about it rewards being personally present every
-day. That combination is rare, and it is the only reason a social platform
-appears in this repo at all.
-
-### What to do, in order
-
-1. **Make a Pinterest account, then switch it to a business account.** Free,
-   takes a minute, and it's the same account either way — Settings → Account
-   management → Convert to business. The API only works on a business account.
-
-2. **Create two boards.** The names have to match `sites.js` exactly:
-
-   - `Funeral order of service`
-   - `Wedding order of service`
-
-   Or skip this and let the tool make them for you the first time, with
-   `--create-boards`.
-
-   The account is Order of Service Maker's, and only its. Quillbill is not on
-   Pinterest and has no board here — a family arriving from a funeral pin
-   should not find a profile that also sells invoicing software.
-
-3. **Make an app.** Go to [developers.pinterest.com](https://developers.pinterest.com),
-   sign in with that account, and create an app. When it asks which permissions
-   it needs, tick all six of these:
-
-   `boards:read` · `boards:write` · `boards:write_secret` ·
-   `pins:read` · `pins:write` · `pins:write_secret`
-
-   The `_secret` pair matters more than it looks. Pinterest treats writing to a
-   secret board as a different permission from writing to a public one, and
-   `--verify-write` runs its whole test on a secret board so that nothing is
-   ever published. Without those two, the safe test is the one thing the token
-   cannot do.
-
-4. **Get a refresh token.** Ignore the console's "Generate token" button. It
-   produces a short-lived test access token with a fixed, largely read-only set
-   of scopes, and there is no button anywhere on that site that gives you a
-   refresh token. The only source is the OAuth flow, so this repo runs it for
-   you:
-
-   ```bash
-   node bin/pinterest-auth.js
-   ```
-
-   It asks for the app id and secret — both are on the app's page, and the
-   secret is not echoed as you type it. Then it prints a link, waits, and
-   catches Pinterest's answer. Approve the app in the browser and it prints the
-   refresh token and stops. Nothing is written to disk and nothing goes into
-   your shell history.
-
-   First register `http://localhost:8385/callback` as a redirect URI on the
-   app; if Pinterest refuses a localhost URI, see
-   [`bin/pinterest-auth.js`](bin/pinterest-auth.js) for the manual route.
-
-   An access token stops working after about a month, which for something
-   running by itself is a failure you would not notice until you wondered why
-   nothing had been posted since September. That is why this step exists.
-
-5. **Put the secrets in GitHub.** In this repo: Settings → Secrets and variables
-   → Actions → New **repository** secret. Add three:
-
-   | Name | What it is |
-   | --- | --- |
-   | `PINTEREST_APP_ID` | from the app page |
-   | `PINTEREST_APP_SECRET` | from the app page |
-   | `PINTEREST_REFRESH_TOKEN` | the refresh token from step 4 |
-
-   **Secrets, not Variables.** They are two different tabs on that page. The
-   workflow reads `secrets.PINTEREST_*`, so anything added as a variable is
-   invisible to it — and a variable is not masked in logs, which is not where
-   a token belongs.
-
-   **Do not paste any of these into a chat, a file, or a commit.** They go in
-   that form and nowhere else. This repo is public.
-
-6. **Check it.** Actions → **Post a pin** → Run workflow, leaving the mode on
-   `verify`. It proves the credentials work, names the account, and lists which
-   boards it found — and posts nothing. A manual run defaults to verifying for
-   exactly that reason; the schedule posts.
-
-That is the whole setup. From then on, a pin goes out on Monday, Wednesday and
-Friday morning, in the order `sites.js` lists them, and the workflow records
-what it sent so nothing goes twice.
-
-### Trial access, which is where every new app starts
-
-Pinterest gives every new app **trial access**, and a trial app cannot create
-pins on the live API at all:
-
-```
-POST /pins → 403: Apps with Trial access may not create Pins in production
-```
-
-No token, scope or board fixes this. Only Pinterest granting **standard
-access** does — apply at developers.pinterest.com, on the app's own page.
-
-The scheduled workflow treats this as a state rather than a fault and exits
-green with an explanation. A red run three times a week for however long the
-application takes teaches everyone to ignore this workflow, and then the one
-time it fails for a real reason nobody looks. When access is granted the same
-schedule starts posting on its own, with nothing to switch back on.
-
-### When Pinterest says "The authorization grant is invalid"
-
-That is Pinterest's answer to every bad refresh token, whatever is actually
-wrong with it. `--verify` prints the causes in order of likelihood.
-
-By far the most common one: the value is not a refresh token at all. Tokens
-from the console's "Generate token" button begin `pina_` and are access
-tokens; refresh tokens begin `pinr_` and come only from
-`bin/pinterest-auth.js`. The two are not interchangeable, and the tool now
-names that case outright rather than leaving you to compare strings.
-
-### If you would rather check it first
-
-With the token exported in your own shell:
-
-```bash
-export PINTEREST_ACCESS_TOKEN=...          # in the terminal, not in a file
-node bin/post-pins.js --sandbox --post      # posts to Pinterest's sandbox
-```
-
-The sandbox accepts real API calls and throws the pins away, so you can watch
-the whole thing work without anything appearing in public.
-
-### If you would rather not connect an account at all
-
-Run the **Build pins** workflow from the Actions tab and download the artifact.
-It contains every image and a `queue.md` listing which board each one goes on,
-what to title it, what to write underneath and where it links. Posting one by
-hand takes about a minute.
-
-### When the queue runs out
-
-It is about a month long. Adding more means adding entries to the `pinterest`
-block of a segment in `sites.js` — a headline, a supporting sentence, and
-either a short table of numbers or a list of steps, all of it taken from a page
-that already exists. The checks will refuse anything that quotes a figure the
-page does not.
-
----
-
 ## The parts no script can do
 
 Roughly in order of expected return:
 
-1. **Connect the Pinterest account.** [Half an hour, once](#pinterest-the-one-thing-that-needs-you),
-   and then a month of pins posts itself. It is the only item on this list that
-   stops being work after you do it.
-2. **Ten partnership conversations for the funeral segment.** Independent
+1. **Ten partnership conversations for the funeral segment.** Independent
    funeral directors, humanist celebrants, hospice bereavement coordinators.
    Offer something worth having — a printing guide, a co-branded template — not
    an affiliate link. One director refers dozens of families a year and never
    churns; ten of those relationships is a better business than any ad account.
-3. **Request indexing for the new guides.** Order of Service Maker is a
+2. **Request indexing for the new guides.** Order of Service Maker is a
    week-old domain with no inbound links, so Google has crawled the homepage
    and little else. Search Console → URL inspection → Request indexing, for
    `/guides/` and each guide. It is a nudge, not a fix; the fix is the
-   backlinks that partnerships and pins produce.
-4. **Split Quire's entry paths by ceremony.** Funeral and wedding currently
+   backlinks that partnerships produce.
+3. **Split Quire's entry paths by ceremony.** Funeral and wedding currently
    share one landing page and one voice. They need separate pages, separate
    tone, and separate search targeting; right now they compete with each other
    for every query.
-5. **Programmatic-but-real pages for Quillbill.** `/vs/freshbooks`, `/vs/wave`,
+4. **Programmatic-but-real pages for Quillbill.** `/vs/freshbooks`, `/vs/wave`,
    `/invoice-template/<trade>`, `/invoice/<country>` for VAT and Rechnung
    formats. Comparison intent converts because the visitor has already decided
    to switch. Each page needs real numbers, not a template fill.
-6. **Cross-link the two products' footers.** Free, permanent, and the audiences
+5. **Cross-link the two products' footers.** Free, permanent, and the audiences
    overlap more than you'd think — celebrants and stationers invoice too.
-7. **A launch pass on the directories.** AlternativeTo, SaaSHub, Show HN,
+6. **A launch pass on the directories.** AlternativeTo, SaaSHub, Show HN,
    Indie Hackers. Once each, written by hand, no bulk submission.
 
 ---
