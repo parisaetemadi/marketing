@@ -92,17 +92,11 @@ module.exports = {
         page: "/guides/stripe-invoicing-fees-explained", verified: "2026-08-15" },
     ],
 
-    /* No Pinterest block anywhere in this product, deliberately.
-
-       The Pinterest account belongs to Order of Service Maker. Putting a
-       "Freelance business admin" board on it would mean a family arriving from
-       a funeral pin finds a profile that also sells invoicing software, which
-       is a trust problem for the audience least able to shrug it off. One
-       account, one thing it is about.
-
-       If Quillbill ever wants Pinterest it needs its own business account and
-       its own credentials — which is a change to how post-pins.js is
-       configured, not another board on this one. */
+    /* If a social channel is ever added for this product, it gets its own
+       account. A board or a feed shared with Order of Service Maker would mean
+       a family arriving from a funeral post finds a profile that also sells
+       invoicing software — a trust problem for the audience least able to
+       shrug it off. One account, one thing it is about. */
 
     segments: [
       {
@@ -273,117 +267,6 @@ module.exports = {
         /* Search intent to earn with content, not to bid on. The site already
            covers cost and wording; the gaps are the practical questions that
            come up while actually making the thing. */
-        /* Pinterest is the one social platform this segment gets, and only
-           because it is not behaving as a social platform here: nothing is
-           pushed at anyone. A pin sits in an index and is found by someone
-           typing "funeral order of service template" — the same act as a
-           Google search, with the same consent. That is the `search` channel
-           above in a different medium, not an exception to solicit: false.
-
-           What stays out is everything push-shaped: no boards built around
-           grief hashtags, no commenting on other people's memorial pins, no
-           following bereaved accounts, no seasonal campaigns. And the tone
-           rules are enforced in bin/make-pins.js rather than trusted to
-           whoever writes the next pin — an exclamation mark, an urgency word
-           or a price in the headline fails the build for this segment. */
-        pinterest: {
-          board: "Funeral order of service",
-          pins: [
-            {
-              page: "/guides/how-many-orders-of-service-to-print.html",
-              kicker: "Before you print",
-              headline: "How many orders of service to print",
-              support: "People arrive in twos and share one booklet, then take it " +
-                "home afterwards. The guest count is not the number you need.",
-              rows: [
-                { label: "40 expected", value: "print 35" },
-                { label: "80 expected", value: "print 60" },
-                { label: "120 expected", value: "print 85" },
-              ],
-              items: [
-                "Count households, not people — about two thirds of the headcount",
-                "Funerals run a third over what the family expected",
-                "Add ten spares; they get posted to people who could not come",
-                "The page count is always a multiple of four",
-              ],
-              title: "How many orders of service to print",
-            },
-            {
-              page: "/guides/printing-an-order-of-service-at-home.html",
-              kicker: "Printing it yourself",
-              headline: "Printing an order of service at home",
-              support: "A folded booklet does not print in reading order. That is " +
-                "what makes the pile of scrap paper.",
-              items: [
-                "120gsm matt paper — 80gsm shows the photograph through",
-                "Page count in multiples of four",
-                "Print the imposed sheets, not pages 1, 2, 3, 4",
-                "Double-sided, flipped on the short edge",
-                "Collate first, then fold the whole stack together",
-              ],
-              title: "Printing an order of service at home",
-            },
-            {
-              page: "/guides/funeral-hymns-and-readings.html",
-              kicker: "Hymns and readings",
-              headline: "The hymn words question nobody warns you about",
-              support: "Traditional hymns are generally out of copyright. More recent " +
-                "hymns and worship songs usually are not, and reproducing the words " +
-                "in a printed booklet can need a licence — even for one funeral.",
-              items: [
-                "A church's blanket licence covers the church, not a booklet printed at home",
-                "Ask the minister or celebrant; it is a thirty-second conversation",
-                "Or print the title and first line only, which is common practice",
-                "Or choose a traditional hymn, which is not a climbdown",
-              ],
-              title: "Printing hymn words in an order of service",
-            },
-            {
-              page: "/guides/funeral-hymns-and-readings.html",
-              kicker: "Choosing the music",
-              headline: "Funeral hymns and readings",
-              support: "Two hymns is the usual number: one after the welcome, one " +
-                "before the committal. A crematorium slot is often twenty to thirty " +
-                "minutes in total, and that is the real constraint.",
-              items: [
-                "The only test that matters: can the people in the room sing it?",
-                "Safe choices are the ones people half-know from school assemblies",
-                "If nobody can sing it, use it as entrance or exit music instead",
-                "Two hymns and one or two readings is what fits",
-              ],
-              title: "Funeral hymns and readings: how many, and which",
-            },
-            {
-              page: "/guides/order-of-service-wording-examples.html",
-              kicker: "What goes on each page",
-              headline: "Order of service wording, page by page",
-              support: "The cover is read from a few feet away, before anyone sits " +
-                "down. It carries a name, two dates, and the place and time — and " +
-                "very little else.",
-              items: [
-                "Cover: name, dates, place and time",
-                "Inside: the running order, in the order it happens",
-                "Hymn words in full, or the first line only",
-                "Back page: thanks, donations, and where everyone is going next",
-              ],
-              title: "Order of service wording, with examples",
-            },
-            {
-              page: "/guides/funeral-order-of-service-cost.html",
-              kicker: "What it costs",
-              headline: "What a funeral order of service costs",
-              rows: [
-                { label: "Funeral director's printing", value: "≈$245" },
-                { label: "Local or online print shop", value: "≈$155" },
-                { label: "Etsy or Canva template", value: "≈$115" },
-                { label: "Order of Service Maker", value: "≈$43" },
-              ],
-              support: "Typical totals for fifty 8-page A5 booklets, August 2026.",
-              title: "What a funeral order of service costs",
-            },
-          ],
-        },
-
         searchIntent: [
           "funeral order of service template", "what to include in an order of service",
           "funeral hymns list", "memorial service programme", "order of service wording",
@@ -402,17 +285,23 @@ module.exports = {
         state: "planning — months of lead time, researching, comparing, DIY-inclined",
         /* This segment plans on Instagram, TikTok and Pinterest, and the
            product makes a physical, photographable object — the booklet is the
-           content. Pinterest is likely the best of the three despite being the
-           least fashionable: a pin keeps sending traffic for years where an
-           Instagram post is finished in two days, and "wedding order of service
-           template" is a Pinterest search, not a scroll.
+           content.
+
+           Pinterest was built out and abandoned in August 2026, and the reason
+           is worth keeping: the pins, the generator and the posting job all
+           worked, and then Pinterest's API turned out to refuse pin creation
+           entirely to apps on trial access. Getting off trial access needs a
+           video demo and a review aimed at third-party platforms with user
+           bases, which a one-business publishing tool is a poor fit for. The
+           code is in this repo's history if the channel is ever worth another
+           attempt; the blocker was never technical.
 
            Social is right for THIS segment and wrong for the bereaved one —
            nobody arranging a funeral on Tuesday is scrolling for stationery.
            The exception is that funeral directors and celebrants are on
            Instagram themselves, so social can serve the partnership channel
            there without ever addressing a grieving family. */
-        social: ["pinterest", "instagram", "tiktok"],
+        social: ["instagram", "tiktok"],
         mustMatch: /order of service|ceremony program|wedding program|ceremony booklet|order.?of.?service/i,
         tone: "warm and practical; templates, budgets and printing tips",
         solicit: true,
@@ -425,68 +314,6 @@ module.exports = {
             "printable ceremony program", "ceremony booklet",
           ],
         },
-        pinterest: {
-          board: "Wedding order of service",
-          pins: [
-            {
-              page: "/guides/wedding-order-of-service-cost.html",
-              kicker: "Wedding stationery",
-              headline: "What a wedding order of service costs",
-              rows: [
-                { label: "Wedding stationer", value: "≈$390" },
-                { label: "Local or online print shop", value: "≈$205" },
-                { label: "Etsy or Canva template", value: "≈$175" },
-                { label: "Order of Service Maker", value: "≈$50" },
-              ],
-              support: "Typical totals for eighty 8-page A5 booklets, August 2026.",
-              title: "What a wedding order of service costs",
-            },
-            {
-              page: "/guides/order-of-service-wording-examples.html",
-              kicker: "Ceremony wording",
-              headline: "Wedding order of service wording",
-              support: "The cover carries both names, the date and the venue. Inside " +
-                "is the ceremony in the order it happens, with readers and musicians " +
-                "named beside their item rather than in a credits list.",
-              items: [
-                "Processional",
-                "Welcome, then the reading, with the reader named",
-                "The vows, the exchange of rings, the pronouncement",
-                "Signing of the register, then the recessional",
-              ],
-              title: "Wedding order of service wording, with examples",
-            },
-            {
-              page: "/guides/how-many-orders-of-service-to-print.html",
-              kicker: "Before you print",
-              headline: "How many ceremony booklets to print",
-              support: "Guests arrive in pairs and share one booklet. Counting " +
-                "households rather than people is what stops you printing eighty " +
-                "and handing out fifty.",
-              rows: [
-                { label: "40 guests", value: "print 35" },
-                { label: "80 guests", value: "print 60" },
-                { label: "120 guests", value: "print 85" },
-              ],
-              title: "How many ceremony booklets to print",
-            },
-            {
-              page: "/guides/printing-an-order-of-service-at-home.html",
-              kicker: "DIY wedding stationery",
-              headline: "Printing your own ceremony booklets",
-              support: "The words are the easy part. What catches people out is that " +
-                "folded pages do not print in the order you read them.",
-              items: [
-                "120gsm matt paper, tested through your printer once",
-                "Page count in multiples of four",
-                "Double-sided, flipped on the short edge",
-                "One test sheet folded and checked before the full run",
-              ],
-              title: "Printing your own wedding ceremony booklets",
-            },
-          ],
-        },
-
         partners: ["wedding stationers", "celebrants", "venue coordinators"],
         searchIntent: [
           "wedding order of service template", "wedding ceremony programme wording",
